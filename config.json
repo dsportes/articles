@@ -1,0 +1,5 @@
+{
+"balance": "/dev/ttyUSB0",
+"imprimante": "WS408",
+"articles": "~/balance/articles.csv"
+}

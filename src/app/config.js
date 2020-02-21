@@ -73,13 +73,61 @@ function decore (data) {
     data.prixN = parseFloat(data.prix)
     if (Number.isNaN(data.prixN)) { data.prixN = 0 }
 
-    let x = data['code-barre'].substring(0, 7) + '000000'
-    let cb = []
-    for (let i = 0; i < 13; i++) {
-        cb[i] = x.charCodeAt(i) - 48
-    }
-    data.cb = cb
+    data.codebarre6 = data['code-barre'].substring(1, 7)
+    normalisecb (data)
 }
+
+function normalisecb (data) {
+    let cb = data['code-barre']
+    if (!cb || cb.length !== 13 || cb.charAt(0) !== '0') {
+        data.erreur.push('Le code barre doit avoir 13 chiffres et ')
+        return
+    }
+    data.codebarre6 = data['code-barre'].substring(1, 7)
+    let v = data.codebarre6
+    if (v.length !== 6) {
+        data.erreur.push('Le code barre doit avoir 6 chiffres')
+        return
+    }
+    for (let i = 0; i < 6; i++) {
+    let c = v.charAt(i)
+    if (c < '0' || c > '9') {
+        data.erreur.push('Le code barre doit avoir 6 chiffres')
+        return
+    }
+
+    let x = '0' + data.codebarre6 + '000000'
+    let ean = []
+    for (let i = 0; i < 13; i++) { ean[i] = x.charCodeAt(i) - 48 }
+    data['code-barre'] = editEan(ean, data.codebarre6)
+}
+
+function editEan(ean, p) {
+    let s = '00000' + p
+    s = s.substring(s.length - 5)
+    for (let i = 4; i >= 0; i--) {
+        ean[i + 7] = s.charCodeAt(i) - 48
+    }
+    let x = 0
+    for (let i = 10; i >= 0; i = i - 2) { x += ean[i] }
+    let y = 0
+    for (let i = 11; i >= 0; i = i - 2) { y += ean[i] }
+    let z = (3 * y) + x
+    let r = z % 10
+    let c = 0
+    if (r !== 0) {
+        let q = Math.floor(z / 10) + 1
+        c = (q * 10) - z
+    }
+    ean[12] = c
+
+    let res = ''
+    for (let i = 0; i < 13; i++) {
+        res += String.fromCharCode(48 + ean[i])
+    }
+    return res
+}
+
 
 // CSV : id nom code-barre prix unite image
 export function lectureArticles(cb) {

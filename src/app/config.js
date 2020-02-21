@@ -37,9 +37,18 @@ try {
     config.quit()
 }
 
-const lgn = 32
+const backup = {}
+
+export function restaurer (id) {
+    let bk = backup[id]
+    if (!bk) { return null }
+    let a = JSON.parse(bk)
+    decore(a)
+    return a
+}
 
 function decore (data) {
+    backup[data.id] = JSON.stringify(data)
     const n = parseInt(data.id, 10)
     // 'A' = 65
     const l1 = String.fromCharCode((n % 26) + 65)
@@ -70,28 +79,6 @@ function decore (data) {
         cb[i] = x.charCodeAt(i) - 48
     }
     data.cb = cb
-
-    let nom = ['', '']
-    let j = 0
-    let nx = data.nom.trim().split(' ')
-    nx.splice(0, 0, '[' + data.codeCourt + ']')
-    for (let i = 0; i < nx.length && j < 2; i++) {
-        let m = nx[i]
-        if (nom[j].length + m.length + 1 < lgn) {
-            if (nom[j].length) {
-                nom[j] = nom[j] + ' ' + m
-            } else {
-                nom[j] = m
-            }
-        } else {
-            j++
-            if (j < 2) {
-                nom[j] = m
-            }
-        }
-    }
-    data.nom1 = nom[0]
-    data.nom2 = nom[1]
 }
 
 // CSV : id nom code-barre prix unite image

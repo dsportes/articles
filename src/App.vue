@@ -30,19 +30,20 @@
 
 
     <q-page-container class="bg-grey-1">
-      <q-table title="Articles" class="my-sticky-header-column-table" :data="selArticles" :columns="colonnes" row-key="id" />
+      <q-table title="Articles"
+        class="my-sticky-header-column-table"
+        selection="single"
+        :selected.sync="courant"
+        :data="selArticles"
+        :columns="colonnes"
+        :rows-per-page-options="[0, 10]"
+        :selected-rows-label="articleChoisi"
+        rows-per-page-label="Nb articles par page"
+        row-key="id" />
+      <div class="q-mt-md">
+        Courant: {{ JSON.stringify(courant) }}
+      </div>
     </q-page-container>
-
-    <!-- q-page-container class="bg-grey-1">
-      <q-page v-if="this.selArticles.length == 0" class="flex flex-center">
-        <div class="pasArticle">Pas d'article répondant à cette sélection</div>
-      </q-page>
-      <q-page v-else>
-        <div class="column no-wrap">
-          <carte-article v-for="article in selArticles" :key="article.id" :article="article" @clic-article="clicArticle(article)"></carte-article>
-        </div>
-      </q-page>
-    </q-page-container -->
 
     <q-dialog v-model="alerte">
       <q-card>
@@ -81,9 +82,6 @@
 import { global } from './app/global'
 import { config, lectureArticles } from './app/config'
 
-/* eslint-disable no-unused-vars */
-import CarteArticle from './components/CarteArticle.vue'
-
 export default {
   name: 'App',
 
@@ -107,6 +105,7 @@ export default {
       texteAlerte: '',
       articles: [],
       selArticles: [],
+      courant: [],
       // id nom code-barre prix unite image
       colonnes: [
         { name: 'id', align: 'left', label: 'Code', field: 'id', sortable: true },
@@ -128,6 +127,10 @@ export default {
   methods: {
     quit () {
       config.quit()
+    },
+
+    articleChoisi (n) {
+      return n ? '1 article choisi' : ''
     },
 
     clicArticle (article) {
@@ -177,7 +180,7 @@ export default {
     highlight the sticky column on any browser window */
   max-width: 100%
 
-  td:first-child
+  td:first-child, td:nth-child(2)
     /* bg color is important for td; just specify one */
     background-color: #c1f4cd !important
 

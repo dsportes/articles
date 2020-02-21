@@ -1,6 +1,6 @@
 <template>
    <q-layout id="q-app" view="hHh lpR fFf">
-    <q-header elevated class="text-grey-9 bg-grey-3">
+    <q-header ref="hdr" elevated class="text-grey-9 bg-grey-3">
       <q-toolbar class="col row q-py-md">
         <q-btn :size="standardBtnSize" flat round @click="panneauGauche = true" icon="menu" aria-label="Menu"/>
       </q-toolbar>
@@ -28,20 +28,15 @@
       </q-list>
     </q-drawer>
 
-
-    <q-page-container class="bg-grey-1">
-      <q-table title="Articles"
-        class="my-sticky-header-column-table"
-        selection="single"
-        :selected.sync="courant"
-        :data="selArticles"
-        :columns="colonnes"
-        :rows-per-page-options="[0, 10]"
-        :selected-rows-label="articleChoisi"
-        rows-per-page-label="Nb articles par page"
-        row-key="id" />
-      <div class="q-mt-md">
-        Courant: {{ JSON.stringify(courant) }}
+    <q-page-container class="bg-grey-1 row">
+      <q-scroll-area class="col column" :style="sty1()">
+        <carte-article v-for="a in selArticles" :key="a.id" :article="a" @clic-article="clicArticle(a)"></carte-article>
+      </q-scroll-area>
+      <div class="col-5 bg-grey-3 detail">
+        <div  v-if="courant ? true : false">
+          <fiche-article :article="courant" @clic-enreg="enregArticle()"/>
+        </div>
+        <div v-else class="text-h4 text-grey-6 text-center pasArticle">Pas d'article sélectionné</div>
       </div>
     </q-page-container>
 
@@ -81,11 +76,13 @@
 <script>
 import { global } from './app/global'
 import { config, lectureArticles } from './app/config'
+import CarteArticle from './components/CarteArticle'
+import FicheArticle from './components/FicheArticle'
 
 export default {
   name: 'App',
 
-  // components: { CarteArticle },
+  components: { CarteArticle, FicheArticle },
 
   mounted() {
     global.appVue = this
@@ -105,36 +102,16 @@ export default {
       texteAlerte: '',
       articles: [],
       selArticles: [],
-      courant: [],
-      // id nom code-barre prix unite image
-      colonnes: [
-        { name: 'id', align: 'left', label: 'Code', field: 'id', sortable: true },
-        { name: 'nom', align: 'left', label: 'Nom', field: 'nom', sortable: true, style: 'width: 40%' },
-        { name: 'ean', align: 'left', label: 'Code barre EAN13', field: 'code-barre', sortable: true },
-        { name: 'prix', align: 'left', label: 'Prix', field: 'prixN', sortable: true },
-        { name: 'bio', align: 'left', label: 'Bio', field: 'bio', sortable: true, format: (val, row) => val ? 'Bio' : '' },
-        { name: 'poidsPiece',
-          align: 'left',
-          label: 'Poids U',
-          field: 'poidsPiece',
-          sortable: true,
-          format: (val, row) => val === -1 ? 'Kg' : (!val ? 'unité' : val + 'g') }
-      ]
-
+      courant: null
     }
   },
 
   methods: {
-    quit () {
-      config.quit()
-    },
+    quit () { config.quit() },
 
-    articleChoisi (n) {
-      return n ? '1 article choisi' : ''
-    },
+    sty1 () { return 'height:' + (window.innerHeight - 80) + 'px' },
 
-    clicArticle (article) {
-    },
+    clicArticle (article) { this.courant = article },
 
     chargementArticles () {
       lectureArticles((err, articles) => {
@@ -171,43 +148,10 @@ export default {
 .negative
   color: $negative !important
 
-// Copié collé
-.my-sticky-header-column-table
-  /* height or max-height is important */
-  height: 50rem
+.detail
+  overflow:hidden
 
-  /* specifying max-width so the example can
-    highlight the sticky column on any browser window */
-  max-width: 100%
+.pasArticle
+  margin: 2rem
 
-  td:first-child, td:nth-child(2)
-    /* bg color is important for td; just specify one */
-    background-color: #c1f4cd !important
-
-  tr th
-    position: sticky
-    /* higher than z-index for td below */
-    z-index: 2
-    /* bg color is important; just specify one */
-    background: #fff
-
-  /* this will be the loading indicator */
-  thead tr:last-child th
-    /* height of all previous header rows */
-    top: 48px
-    /* highest z-index */
-    z-index: 3
-  thead tr:first-child th
-    top: 0
-    z-index: 1
-  tr:first-child th:first-child
-    /* highest z-index */
-    z-index: 3
-
-  td:first-child
-    z-index: 1
-
-  td:first-child, th:first-child
-    position: sticky
-    left: 0
 </style>

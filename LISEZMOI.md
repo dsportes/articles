@@ -1,4 +1,4 @@
-git init
+git init 
 git config credential.helper store
 
 // Mettre les sources changés en stages

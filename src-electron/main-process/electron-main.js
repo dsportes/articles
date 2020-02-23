@@ -14,6 +14,18 @@ if (process.env.PROD) {
   global.__statics = require('path').join(__dirname, 'statics').replace(/\\/g, '\\\\')
 }
 
+const argv = process.argv
+let hauteur = 700
+let largeur = 1000
+for (let i = 0; i < argv.length; i++) {
+    const x = argv[i]
+    if (x && x.startsWith('h=')) {
+      hauteur = parseInt(x.substring(2), 10)
+    } else if (x && x.startsWith('l=')) {
+      largeur = parseInt(x.substring(2), 10)
+    }
+}
+
 let mainWindow
 
 function createWindow () {
@@ -21,8 +33,8 @@ function createWindow () {
    * Initial window options
    */
   mainWindow = new BrowserWindow({
-    width: 1024,
-    height: 768,
+    width: largeur,
+    height: hauteur,
     useContentSize: true,
     frame: true,
     webPreferences: {
@@ -36,11 +48,10 @@ function createWindow () {
   })
 
   mainWindow.loadURL(process.env.APP_URL)
-  // mainWindow.setMenu(null)
 
   if (process.env.PROD) {
     mainWindow.setMenu(null)
-    mainWindow.setSimpleFullScreen(true)
+    // mainWindow.setSimpleFullScreen(true)
   } else {
     // mainWindow.maximize()
   }

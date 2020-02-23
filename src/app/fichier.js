@@ -12,34 +12,58 @@ prixN : prix sous forme numérique
 */
 
 import { config } from './config'
-import { removeDiacritics, editEAN, formatPrix } from './global'
+import { removeDiacritics, editEAN, formatPrix, dateHeure } from './global'
 
 const csv = require('csv-parser')
 const fs = require('fs')
 const path = require('path')
+const createCsvStringifier = require('csv-writer').createObjectCsvStringifier
 
-let dir
-let archives
+const dir = config.dir
+const archivesPath = path.join(dir, 'archives')
+const modelesPath = path.join(dir, 'modèles')
+const articlesPath = path.join(dir, 'articles.csv')
+const maxArch = config.nbMaxArchives ? config.nbMaxArchives : 10
+const header = [
+    { id: 'id', title: 'id' },
+    { id: 'nom', title: 'nom' },
+    { id: 'code-barre', title: 'code-barre' },
+    { id: 'prix', title: 'prix' },
+    { id: 'unite', title: 'unite' },
+    { id: 'image', title: 'image' }
+]
+let reference = []
 
 export function eq(a1, a2) {
- return a1.n === a2.n
-    && a1.id === a2.id
-    && a1['code-barre'] === ['code-barre']
-    && a1.prix === a2.prix
-    && a1.unite === a2.unite
-    && a1.image === a2.image
+ return a1.n === a2.n &&
+    a1.id === a2.id &&
+    a1['code-barre'] === ['code-barre'] &&
+    a1.prix === a2.prix &&
+    a1.unite === a2.unite &&
+    a1.image === a2.image
 }
 
-export function listeArchives() {
-    if (!dir) { 
-        dir = config.dir
-        archives = path.join(dir, 'archives')
+export function eqRef(articles) {
+    if (articles.length !== reference.length) { return false }
+    for (let i = 0; articles.length; i++) {
+        if (!eq(reference[i], articles[i])) { return false }
     }
+    return true
+}
+
+export function listeArchMod(arch) {
     let lst = []
-    fs.readdirSync(archives).forEach(file => {
+    fs.readdirSync(arch ? archivesPath : modelesPath).forEach(file => {
         if (file.endsWith('.csv')) { lst.push(file) }
     })
-    return lst.sort()
+    lst.sort((a, b) => a > b ? 1 : (a < b ? -1 : 0))
+    if (arch && lst.length > maxArch) {
+        for (let i = maxArch - 1; i < lst.length; i++) {
+            fs.unlinkSync(path.join(archivesPath, lst[i]))
+        }
+        lst.splice(maxArch, lst.length - maxArch)
+    }
+    return lst
 }
 
 export function clone(data) {
@@ -47,29 +71,66 @@ export function clone(data) {
 }
 
 export class Fichier {
-    constructor (nom) {
-        if (!dir) { 
-            dir = config.dir
-            archives = path.join(dir, 'archives')
-        }
-        this.nom = nom
-        this.path = nom ? path.join(archives, nom) : path.join(dir, 'articles.csv')
+    constructor (nom, arch) {
+        this.nom = nom && nom.endsWith('.csv') ? nom.substring(0, nom.length - 4) : nom
+        this.arch = arch
+        this.path = this.nom ? path.join(arch ? archivesPath : modelesPath, this.nom + '.csv') : articlesPath
         this.articles = []
         this.articlesI = []
+        this.label = nom ? (arch ? 'Archive [' + nom + ']' : 'Modèle [' + this.nom + ']') : 'En service sur les balances'
+        this.nbcrees = 0
+        this.nbmodifies = 0
+        this.nbsupprimes = 0
+        this.nberreurs = 0
     }
 
-    aChange () {
-        if (this.articles.length !== this.articlesI.length) { return true }
-        for (let i = 0; this.articles.length; i++) {
-            if (!eq(this.articlesI[i], this.articles[i])) { return true }
+    detruire () {
+        if (this.nom) { fs.unlinkSync(this.path) }
+    }
+
+    /*
+    Si n est présent, le sauver en tant que modèle
+    si envoi est true, l'envoyer aux balances si différent de la référence : l'écrire en archive ET sur articles.csv
+    */
+    ecrire (n, envoi) {
+        let na = []
+        for (let i = 0; i < this.articles.length; i++) {
+            let x = this.articles[i]
+            if (x.status <= 2) {
+                na.push(x)
+                x.status = 0
+            }
         }
-        return fakse
+        this.articles = na
+        this.stats()
+        let aEnvoyer = envoi && !eqRef(na)
+        return new Promise((resolve, reject) => {
+            const csvStringifier = createCsvStringifier({ header: header, fieldDelimiter: ';' })
+            const s = csvStringifier.getHeaderString() + csvStringifier.stringifyRecords(na)
+            let a
+            if (this.nom && !this.arch && !n) {
+                // c'est un modele à sauver en son nom
+                fs.writeFileSync(path.join(modelesPath, this.nom + '.csv'), s, (err) => { reject(err) })
+            }
+            if (n) {
+                // c'est n'importe quoi à sauver comme modèle
+                fs.writeFileSync(path.join(modelesPath, n + '.csv'), s, (err) => { reject(err) })
+            }
+            if (aEnvoyer) {
+                // le contenu diffère de celui en service : mettre en archives et dans aricles.csv
+                a = dateHeure
+                fs.writeFileSync(articlesPath, s, (err) => { reject(err) })
+                fs.writeFileSync(path.join(archivesPath, a + '.csv'), s, (err) => { reject(err) })
+            }
+            resolve(a)
+        })
     }
 
     async lire () {
         return new Promise((resolve, reject) => {
             let n = 0
             this.erreur = false
+            let ref = []
             const rs = fs.createReadStream(this.path)
             rs.on('error', (e) => {
                 reject(e)
@@ -77,13 +138,17 @@ export class Fichier {
             try {
                 rs.pipe(csv({ separator: ';' }))
                 .on('data', (data) => {
+                    if (!this.nom) { ref.push(data) }
                     n++
                     data.n = n
                     this.articlesI.push(data)
+                    data.status = 0
                     this.decore(data)
                     this.articles.push(data)
                 })
                 .on('end', () => {
+                    reference = ref
+                    this.stats()
                     resolve(this.articles)
                 })
                 rs.on('error', (e) => {
@@ -95,12 +160,18 @@ export class Fichier {
         })
     }
 
-    nbErreurs () {
-        let nb = 0
+    stats () {
+        this.nbcrees = 0
+        this.nbmodifies = 0
+        this.nbsupprimes = 0
+        this.nberreurs = 0
         for (let i = 0; i < this.articles.length; i++) {
-            if (this.articles[i].erreurs.length) { nb++ }
+            let a = this.articles[i]
+            if (a.erreurs.length) { this.nberreurs++ }
+            if (a.status === 1 || a.status === 4) { this.nbcrees++ }
+            if (a.status === 2) { this.nbmodifiees++ }
+            if (a.status === 3 || a.status === 4) { this.nbsupprimes++ }
         }
-        return nb
     }
 
     majEAN (data, ean) {
@@ -125,7 +196,7 @@ export class Fichier {
     }
 
     majPrix (data, prix) {
-        if (!prix || typeof prix !== 'number' || prix < 0 || prix > 999999 ) {
+        if (!prix || typeof prix !== 'number' || prix < 0 || prix > 999999) {
             return 'prix absent ou < 0 ou > 999999'
         }
         data.prixN = prix
@@ -149,8 +220,8 @@ export class Fichier {
     }
 
     majUKg (data, val) {
-        if (val !== 'Unite(s)' && val !== 'kg') {
-            return 'unite doit valoir "Unite(s)" ou "kg"'
+        if (val !== 'Unité(s)' && val !== 'kg') {
+            return 'unite doit valoir "Unité(s)" ou "kg"'
         }
         data.unite = val
         if (val === 'Unite(s)') {
@@ -182,7 +253,7 @@ export class Fichier {
             data.erreurs.push('code barre non numérique ou pas de longueur 6, 12 ou 13 (avec 0 devant)')
         }
 
-        e = majId (data, data.id)
+        e = this.majId (data, data.id)
         if (e) { data.erreurs.push(e) }
 
         e = this.majUKg (data, data.unite)
@@ -190,7 +261,7 @@ export class Fichier {
 
         try {
             e = parseFloat(data.prix)
-            if (e < 0 || e > 999999 ) {
+            if (e < 0 || e > 999999) {
                 data.erreurs.push('prix absent ou < 0 ou > 999999')
             } else {
                 data.prixN = e
@@ -199,5 +270,4 @@ export class Fichier {
             data.erreurs.push('prix absent ou < 0 ou > 999999')
         }
     }
-
 }

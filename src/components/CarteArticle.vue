@@ -1,10 +1,17 @@
 <template>
-  <div class="carteArticle shadow-5 row no-wrap justify-start items-center" @click="$emit('clic-article')">
+<div style="position:relative">
+  <div v-if="article.erreurs.length" class="chip" @click="erreurs = true">
+    <q-chip dense>
+        <q-avatar color="negative" text-color="white">{{ article.erreurs.length }}</q-avatar>{{ article.erreurs.length == 1 ? 'erreur' : 'erreurs'}}
+    </q-chip>
+  </div>
+  <div class="carteArticle shadow-5 row no-wrap justify-start items-center">
     <div class="col-auto"><img class="image" :src="'data:image/jpeg;base64,' + article.image"></div>
     <div class="col-auto column items-start droite">
       <div class="col-auto prix">{{ article.id }}</div>
       <div class="col-auto prix">{{ article['code-barre'].substring(1, 7) }}</div>
       <div class="col-auto prix">{{ article.categorie }}</div>
+      <div v-if="article.status !== 0" class="col-auto prix rouge">{{ libstat() }}</div>
     </div>
     <div class="col nomproduit">[{{ article.codeCourt }}] {{ article.nom }}</div>
     <div class="col-auto column items-start droite">
@@ -14,6 +21,21 @@
       <div v-if="article.bio" class="col self-end"><img class="iconeAB" src="../assets/logoAB.jpg"></div>
     </div>
   </div>
+
+  <q-dialog v-model="erreurs">
+    <q-card>
+      <q-card-section>
+        <div class="text-h6">{{ (article.erreurs.length > 1 ? '' + article.erreurs.length + ' erreurs' : '1 erreur') + ' dans cet article'}}</div>
+      </q-card-section>
+      <q-card-section class="q-pt-none">
+        <div v-for="a in article.erreurs" :key="a">{{ a }}</div>
+      </q-card-section>
+      <q-card-actions align="right">
+        <q-btn size="1.5rem" flat label="J'ai lu" color="negative" v-close-popup />
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+</div>
 </template>
 
 <script>
@@ -22,6 +44,13 @@ export default {
   props: ['article'],
   data () {
     return {
+      erreurs: false
+    }
+  },
+  methods: {
+    libstat () {
+      let s = this.article.status
+      return s === 1 ? 'CREE' : (s === 2 ? 'MODIFIE' : (s === 3 ? 'SUPPR.' : 'CR/SUPPR'))
     }
   }
 }
@@ -38,6 +67,14 @@ $hauteur: 5rem
   background-color: white
   cursor: pointer
   overflow: hidden
+  color: black
+
+.chip
+  position: absolute
+  left: 0.2rem
+  font-weight: bold
+  z-index: 10
+  cursor: pointer
 
 .image
   width: $hauteur
@@ -55,6 +92,11 @@ $hauteur: 5rem
 
 .prix
   font-size: $standardFontSize
+  line-height: $standardFontSize
+
+.rouge
+  font-weight: bold
+  color: red
 
 .iconeAB
   width: $veryLargeFontSize

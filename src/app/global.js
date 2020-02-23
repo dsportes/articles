@@ -2,8 +2,22 @@ export const global = {
 
 }
 
+function e2(n) { return e2 === 0 ? '00' : (n < 10 ? '0' + n : '' + n) }
+
+export function dateHeure () {
+  const d = new Date()
+  return d.getFullYear() + '-' + e2(d.getMonth() + 1) + '-' + e2(d.getDate()) + '_' + e2(d.getHours()) + e2(d.getMinutes()) + e2(d.getSeconds())
+}
+
+const regb64u = RegExp(/^[a-zA-Z0-9-_]*$/)
+
+export function b64u (s, min, max) {
+  if (!s || s.length < min || s.length > max) { return false }
+  return regb64u.test(s)
+}
+
 export function formatPrix (p) {
-    if (!p || p < 0) { return '0.00'}
+    if (!p || p < 0) { return '0.00' }
     const e = Math.floor(p / 100)
     const c = p % 100
     return '' + e + '.' + (c > 9 ? c : '0' + c)

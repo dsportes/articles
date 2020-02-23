@@ -23,8 +23,10 @@ try {
     if (!dir) { dir = require('os').homedir() + '/balance' }
     config.dir = path.normalize(dir)
     const rawdata = fs.readFileSync(path.join(config.dir, 'config.json'))
-    const obj = JSON.parse(rawdata)
-    for (let f in obj) { config[f] = obj[f] }
+    if (rawdata) {
+        const obj = JSON.parse(rawdata)
+        for (let f in obj) { config[f] = obj[f] }
+    }
 } catch (e) {
     const err = {
         type: 'error',

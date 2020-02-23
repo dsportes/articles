@@ -35,9 +35,9 @@ const header = [
 let reference = []
 
 export function eq(a1, a2) {
- return a1.n === a2.n &&
+ return a1.nom === a2.nom &&
     a1.id === a2.id &&
-    a1['code-barre'] === ['code-barre'] &&
+    a1['code-barre'] === a2['code-barre'] &&
     a1.prix === a2.prix &&
     a1.unite === a2.unite &&
     a1.image === a2.image
@@ -45,7 +45,7 @@ export function eq(a1, a2) {
 
 export function eqRef(articles) {
     if (articles.length !== reference.length) { return false }
-    for (let i = 0; articles.length; i++) {
+    for (let i = 0; i < articles.length; i++) {
         if (!eq(reference[i], articles[i])) { return false }
     }
     return true
@@ -68,6 +68,14 @@ export function listeArchMod(arch) {
 
 export function clone(data) {
     return JSON.parse(JSON.stringify(data))
+}
+
+export function copieFichier(nom, p) {
+    return new Promise((resolve, reject) => {
+        const data = fs.readFileSync(p, 'utf8', (err) => { reject(err) })
+        fs.writeFileSync(path.join(modelesPath, nom), data, (err) => { reject(err) })
+        resolve()
+    })
 }
 
 export class Fichier {
@@ -118,7 +126,7 @@ export class Fichier {
             }
             if (aEnvoyer) {
                 // le contenu diffère de celui en service : mettre en archives et dans aricles.csv
-                a = dateHeure
+                a = dateHeure()
                 fs.writeFileSync(articlesPath, s, (err) => { reject(err) })
                 fs.writeFileSync(path.join(archivesPath, a + '.csv'), s, (err) => { reject(err) })
             }
@@ -172,6 +180,7 @@ export class Fichier {
             if (a.status === 2) { this.nbmodifiees++ }
             if (a.status === 3 || a.status === 4) { this.nbsupprimes++ }
         }
+        return this.nbcrees + this.nbmodifies + this.nbsupprimes
     }
 
     majEAN (data, ean) {

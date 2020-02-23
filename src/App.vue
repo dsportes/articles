@@ -41,11 +41,11 @@
           </q-item>
          <q-item clickable class="bg-grey-1" v-ripple @click="ouvrirODOO()">
             <q-item-section avatar><q-icon class="menuButton" :name="'cloud_download'"/></q-item-section>
-            <q-item-section class="menuText">Fichier importé de ODOO</q-item-section>
+            <q-item-section class="menuText">Importation depuis ODOO</q-item-section>
           </q-item>
-         <q-item clickable class="bg-grey-1" v-ripple @click="ouvrirLocal()">
+         <q-item clickable class="bg-grey-1" v-ripple @click="fichierlocal = true;fichierImport = null">
             <q-item-section avatar><q-icon class="menuButton" :name="'add_box'"/></q-item-section>
-            <q-item-section class="menuText">Fichier local</q-item-section>
+            <q-item-section class="menuText">Importer un fichier local comme modèle</q-item-section>
           </q-item>
           <q-separator />
           <q-item class="column">
@@ -110,6 +110,21 @@
       </q-card>
     </q-dialog>
 
+    <q-dialog v-model="fichierlocal" class="modeleDialog">
+      <q-card>
+        <q-card-section>
+          <div class="text-h6">Sélection du fichier à importer</div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          <q-input @input="val => { fichierImport = val[0] }" filled type="file" hint="Fichier à importer"/>
+      </q-card-section>
+        <q-card-actions align="right">
+          <q-btn size="1.5rem" label="Annuler" color="negative" v-close-popup />
+          <q-btn size="1.5rem" label="Valider" :disable="fichierImport ? false : true" color="positive" @click="importFichier()" />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <q-dialog v-model="envoye">
       <q-card>
         <q-card-section>
@@ -117,7 +132,7 @@
         </q-card-section>
         <q-card-section class="q-pt-none">
           <div v-if="dhArchivage">Le fichier a été envoyé aux balances, sauvé et archivé sous le nom {{ dhArchivage }}</div>
-          <div v-else>Le fichier est sauvé mais n'a pas été envoyé aux balances qui l'ont déjà avec le même contenu</div>
+          <div v-else>Le fichier est sauvé mais n'a pas été envoyé aux balances qui l'ont déjà reçu avec le même contenu.</div>
         </q-card-section>
         <q-card-actions align="right">
           <q-btn size="1.5rem" flat label="J'ai lu" color="negative" v-close-popup />
@@ -210,7 +225,7 @@
 <script>
 import { global, b64u } from './app/global'
 import { config } from './app/config'
-import { Fichier, listeArchMod } from './app/fichier'
+import { Fichier, listeArchMod, copieFichier } from './app/fichier'
 import CarteArticle from './components/CarteArticle.vue'
 
 export default {
@@ -225,7 +240,7 @@ export default {
       this.articles = await this.fichier.lire()
       this.selArticles = this.articles
     } catch (e) {
-      this.erreur(e.message)
+      this.erreur('Le fichier des articles [articles.csv] est corrompu ou inaccessible.', e.message)
     }
   },
 
@@ -242,12 +257,14 @@ export default {
       perdreModif: false,
       detruiremodele: false,
       envoyerfichier: false,
+      fichierlocal: false,
       envoye: false,
       exitApp: false,
       alerte: false,
       enreg: false,
       dhArchivage: '',
       texteAlerte: '',
+      fichierImport: '',
       articles: [],
       selArticles: [],
       courant: null,
@@ -262,8 +279,8 @@ export default {
 
     clicArticle (article) { this.courant = article },
 
-    erreur (err) {
-      this.texteAlerte = 'Le fichier des articles est corrompu ou absent\n' + this.fichier.path + '\n' + err
+    erreur (msg, err) {
+      this.texteAlerte = msg + (err ? '\n' + err : '')
       this.alerte = true
       this.panneauGauche = false
       this.panneauDroit = false
@@ -295,13 +312,29 @@ export default {
           this.selArticles = this.articles
         } catch (e) {
           this.fichier = null
-          this.erreur(e.message)
+          this.erreur('Le fichier [' + f + '] est corrompu ou inaccessible.', e.message)
         }
       }
     },
 
-    ouvrirLocal () {
-
+    async importFichier () {
+      this.fichierlocal = false
+      let f = this.fichierImport
+      if (f.type !== 'text/csv') {
+        this.erreur('Le fichier sélectionné doit être un ".csv".')
+        return
+      }
+      let n = this.fichier.stats()
+      if (n) {
+        this.erreur('Le fichier en cours a des modifications non enregistrées. Les annuler ou enregistrer avant')
+        return
+      }
+      try {
+        await copieFichier(f.name, f.path)
+        await this.ouvrirFichier(f.name)
+      } catch (err) {
+        this.erreur('Le fichier sélectionné n\'a pu être importé comme modèle.\n', err.message)
+      }
     },
 
     ouvrirODOO () {
@@ -315,7 +348,7 @@ export default {
         this.nomModele = ''
         await this.fichier.ecrire(m)
       } catch (e) {
-        this.erreur(e.message)
+        this.erreur('Impossible d\'enregistrer le fichier [' + m + ']', e.message)
       }
     },
 

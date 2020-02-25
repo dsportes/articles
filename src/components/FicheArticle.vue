@@ -8,7 +8,6 @@
 </template>
 
 <script>
-import { restaurer } from '../app/config'
 
 export default {
   name: 'FicheArticle',
@@ -20,7 +19,7 @@ export default {
   },
   methods: {
     restaurer () {
-      let orig = restaurer(this.article.id)
+      let orig = []
       if (orig) {
         for (let f in orig) { this.article[f] = orig[f] }
       }
@@ -39,7 +38,6 @@ export default {
         }
       }
       this.codebarre6 = v
-      
     }
   }
 }

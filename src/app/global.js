@@ -2,18 +2,24 @@ export const global = {
 
 }
 
+const regb64u = RegExp(/^[a-zA-Z0-9-_]*$/)
+const regb64 = RegExp(/([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$/)
+
+export function b64u (s, min, max) {
+  if (!s || s.length < min || s.length > max) { return false }
+  return regb64u.test(s)
+}
+
+export function estBase64 (s) {
+  if (!s || typeof s !== 'string' || s.length < 3) { return false }
+  return regb64.test(s)
+}
+
 function e2(n) { return e2 === 0 ? '00' : (n < 10 ? '0' + n : '' + n) }
 
 export function dateHeure () {
   const d = new Date()
   return d.getFullYear() + '-' + e2(d.getMonth() + 1) + '-' + e2(d.getDate()) + '_' + e2(d.getHours()) + e2(d.getMinutes()) + e2(d.getSeconds())
-}
-
-const regb64u = RegExp(/^[a-zA-Z0-9-_]*$/)
-
-export function b64u (s, min, max) {
-  if (!s || s.length < min || s.length > max) { return false }
-  return regb64u.test(s)
 }
 
 export function formatPrix (p) {

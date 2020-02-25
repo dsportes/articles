@@ -13,6 +13,9 @@ prixN : prix sous forme numérique
 
 import { config } from './config'
 import { removeDiacritics, editEAN, formatPrix, dateHeure } from './global'
+const Stream = require('stream')
+
+export const enteteCSV = '"id";"nom";"code-barre";"prix";"unite";"image"\n'
 
 const csv = require('csv-parser')
 const fs = require('fs')
@@ -78,14 +81,34 @@ export function copieFichier(nom, p) {
     })
 }
 
+/*
+Si nom est présent et ne commence pas par $ : c'est soit une archive, soit un modèle
+Si nom == '$S' : fichier récupéré du serveur central (sélection d'articles de ODOO).
+Si nom == '$N' : c'est un nouveau fichier vide.
+Si nom est absent : c'est le fichier actuellement en service sur les balances (le dernier envoyé)
+*/
+
 export class Fichier {
     constructor (nom, arch) {
         this.nom = nom && nom.endsWith('.csv') ? nom.substring(0, nom.length - 4) : nom
         this.arch = arch
-        this.path = this.nom ? path.join(arch ? archivesPath : modelesPath, this.nom + '.csv') : articlesPath
+        if (this.nom) {
+            if (this.nom === '$S') {
+                this.label = 'fichier importé du central'
+            } else if (this.nom === '$N') {
+                this.label = 'fichier vide'
+            } else if (arch) {
+                this.label = 'archive [' + nom + ']'
+                this.path = path.join(archivesPath, this.nom + '.csv')
+            } else {
+                this.label = 'modèle [' + nom + ']'
+                this.path = path.join(modelesPath, this.nom + '.csv')
+            }
+        } else {
+            this.label = 'dernier fichier mis en service'
+        }
         this.articles = []
         this.articlesI = []
-        this.label = nom ? (arch ? 'Archive [' + nom + ']' : 'Modèle [' + this.nom + ']') : 'En service sur les balances'
         this.nbcrees = 0
         this.nbmodifies = 0
         this.nbsupprimes = 0
@@ -134,17 +157,33 @@ export class Fichier {
         })
     }
 
-    async lire () {
+    /*
+    Si le fichier a pour nom $S l'argument source est le string obtenu par import des données du serveur central (ODOO).
+    Dans les autres cas, soucre est absent.
+    Si le fichier est $N, la source est constituée de la seule entête CSV.
+    Sinon le contenu est lu depuis le fichier dont le path a été défini au constructor (nom arch)
+    */
+    async lire (source) {
         return new Promise((resolve, reject) => {
+            let stream
+            if (this.nom.startsWith('$')) {
+                stream = new Stream()
+                if (this.nom === '$S') {
+                    stream.emit('data', source)
+                } else {
+                    stream.emit(enteteCSV)
+                }
+            } else {
+                stream = fs.createReadStream(this.path)
+            }
             let n = 0
             this.erreur = false
             let ref = []
-            const rs = fs.createReadStream(this.path)
-            rs.on('error', (e) => {
+            stream.on('error', (e) => {
                 reject(e)
             })
             try {
-                rs.pipe(csv({ separator: ';' }))
+                stream.pipe(csv({ separator: ';' }))
                 .on('data', (data) => {
                     if (!this.nom) { ref.push(data) }
                     n++
@@ -159,7 +198,7 @@ export class Fichier {
                     this.stats()
                     resolve(this.articles)
                 })
-                rs.on('error', (e) => {
+                stream.on('error', (e) => {
                     reject(e)
                 })
             } catch (e) {

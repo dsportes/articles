@@ -4,7 +4,7 @@
       <q-toolbar class="row q-py-md bg-black text-white">
         <q-btn :size="standardBtnSize" flat round @click="panneauGauche = true" icon="menu" color="grey-2" aria-label="Menu"/>
         <q-toolbar-title>
-          Mise à jour des balances
+          Mise à jour des articles sur les balances
         </q-toolbar-title>
         <q-btn :size="standardBtnSize" flat @click="panneauFichiers()" icon="folder_open" label="Fichiers" color="grey-2" aria-label="Menu"/>
       </q-toolbar>
@@ -75,7 +75,9 @@
     <q-page-container>
       <div v-if="selArticles.length === 0" class="pasArticles" style="height:100vh;margin-top:40vh">Pas d'articles</div>
       <div v-else style="width:100%">
-        <carte-article v-for="a in selArticles" :key="a.id" :article="a" @clic-article="clicArticle(a)"></carte-article>
+        <div v-for="(a, index) in selArticles" :key="index" @click="clicArticle(a, index)">
+          <carte-article :article="a"></carte-article>
+        </div>
       </div>
     </q-page-container>
 
@@ -237,6 +239,7 @@
       </q-card>
     </q-dialog>
 
+    <fiche-article :fichier="fichier" :max="selArticles.length"></fiche-article>
    </q-layout>
 </template>
 
@@ -245,11 +248,12 @@ import { global, b64u } from './app/global'
 import { config } from './app/config'
 import { Fichier, listeArchMod, copieFichier } from './app/fichier'
 import CarteArticle from './components/CarteArticle.vue'
+import FicheArticle from './components/FicheArticle.vue'
 
 export default {
   name: 'App',
 
-  components: { CarteArticle },
+  components: { CarteArticle, FicheArticle },
 
   async mounted() {
     global.appVue = this
@@ -286,7 +290,8 @@ export default {
       fichierImport: '',
       articles: [],
       selArticles: [],
-      courant: null,
+      index: 0,
+      position: 0,
       nomModele: ''
     }
   },
@@ -296,7 +301,13 @@ export default {
 
     b64u (val) { return b64u(val, 4, 32) },
 
-    clicArticle (article) { this.courant = article },
+    clicArticle (a, position) {
+      global.ficheArticle.ouvrir(a.n, position)
+    },
+
+    dataChange () {
+      this.fichier.stats()
+    },
 
     erreur (msg, err) {
       this.texteAlerte = msg + (err ? '\n' + err : '')
@@ -484,5 +495,8 @@ export default {
   font-weight: bold
   color: red
   font-size: $standardFontSize
+
+.dialogText
+  font-size: $largeFontSize
 
 </style>

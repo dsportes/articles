@@ -3,7 +3,6 @@
 n : numéro de ligne dans le fichier (identifiant)
 nomN : nom normalisé, en majuscule et sans accent
 ean6 : six caractètres de tête de l'ean (sans le 0)
-ean13 : les 13 caractères incluant 0 en tête et la clé en queue
 err[] : liste des erreurs détectées
 codeCourt : deux lettres en majuscules calculées depuis l'id
 poidsPiece : pods donné en fin du nom après // représentant le poids unitaire moyen d'une pièce
@@ -19,8 +18,13 @@ const fs = require('fs')
 const path = require('path')
 const createCsvStringifier = require('csv-writer').createObjectCsvStringifier
 
-export const enteteCSV = '"id";"nom";"code-barre";"prix";"categorie";"unite";"image"\n'
-export const ligne1 = '99999;"Mon beau produit";4123456123450;1.0;"A";"Unite(s)";""\n'
+export const colonnes = ['id', 'nom', 'code-barre', 'prix', 'categorie', 'unite', 'image']
+export const defVal = ['0', '', '0000000000000', '0.0', 'A', 'Unite(s)', '']
+export const ligne1 = '0;"";0000000000000;0.0;A;Unite(s);""\n'
+
+
+export const enteteCSV = []
+for (let i = 0, f = null; (f = colonnes[i]); i++) { enteteCSV.push('"' + f + (i === colonnes.length - 1 ? '"\n' : '";')) }
 
 const dir = config.dir
 const archivesPath = path.join(dir, 'archives')
@@ -37,16 +41,18 @@ const header = [
     { id: 'unite', title: 'unite' },
     { id: 'image', title: 'image' }
 ]
+
 let reference = []
 
+export function clone(data) {
+    const a1 = {}
+    for (let i = 0, f = null; (f = colonnes[i]); i++) { a1[f] = data[f] }
+    return a1
+}
+
 export function eq(a1, a2) {
- return a1.nom === a2.nom &&
-    a1.id === a2.id &&
-    a1['code-barre'] === a2['code-barre'] &&
-    a1.prix === a2.prix &&
-    a1.categorie === a2.categorie &&
-    a1.unite === a2.unite &&
-    a1.image === a2.image
+    for (let i = 0, f = null; (f = colonnes[i]); i++) { if (a1[f] !== a2[f]) { return false } }
+    return true
 }
 
 export function eqRef(articles) {
@@ -196,7 +202,7 @@ export class Fichier {
                     data.n = n
                     this.articlesI.push(data)
                     data.status = 0
-                    this.decore(data)
+                    decore(data)
                     this.articles.push(data)
                 })
                 .on('end', () => {
@@ -227,125 +233,97 @@ export class Fichier {
         }
         return this.nbcrees + this.nbmodifies + this.nbsupprimes
     }
+}
 
-    majNom (data, nom) {
-        if (!nom || nom.length < 4 || nom.length > 100) {
-            return 'nom absent ou de longueur < 4 ou > 100'
-        }
-        data.nom = nom
-        data.nomN = removeDiacritics(data.nom.toUpperCase())
-        data.bio = data.nomN.indexOf('BIO') !== -1
-        return ''
+export function decore (data) {
+    data.erreurs = []
+    let e
+    for (let i = 0, f = null; (f = colonnes[i]); i++) {
+        e = maj(data, f, data[f])
+        if (e) { data.erreurs.push(e) }
     }
+}
 
-    majPrix (data, prix) {
-        try {
-            let e = parseFloat(prix) * 100
-            if (e < 0 || e > 999999) {
-                return 'prix absent ou < 0 ou > 999999'
-            } else {
-                data.prixN = e
-                data.prix = formatPrix(e)
+export function maj (data, col, val) {
+    switch (col) {
+        case 'id' : {
+            try {
+                const n = parseInt(val, 10)
+                if (n < 1 || n > 999999) { return 'id non numérique compris entre 1 et 999999' }
+                data.id = val
+                // 'A' = 65
+                const l1 = String.fromCharCode((n % 26) + 65)
+                const l2 = String.fromCharCode((Math.floor(n / 26) % 26) + 65)
+                data.codeCourt = l2 + l1
                 return ''
+            } catch (e) {
+                return 'id non numérique compris entre 1 et 999999'
             }
-        } catch (err) {
-            return 'prix absent ou < 0 ou > 999999'
         }
-    }
-
-    majId (data, id) {
-        try {
-            const n = parseInt(id, 10)
-            if (n < 1 || n > 999999) { return 'id non numérique compris entre 1 et 999999' }
-            data.id = id
-            // 'A' = 65
-            const l1 = String.fromCharCode((n % 26) + 65)
-            const l2 = String.fromCharCode((Math.floor(n / 26) % 26) + 65)
-            data.codeCourt = l2 + l1
+        case 'nom' : {
+            if (!val || val.length < 4 || val.length > 100) {
+                return 'nom absent ou de longueur < 4 ou > 100'
+            }
+            data.nom = val
+            data.nomN = removeDiacritics(data.nom.toUpperCase())
+            data.bio = data.nomN.indexOf('BIO') !== -1
             return ''
-        } catch (e) {
-            return 'id non numérique compris entre 1 et 999999'
         }
-    }
-
-    majUKg (data, val) {
-        if (val !== 'Unite(s)' && val !== 'kg') {
-            return 'unite doit valoir "Unite(s)" ou "kg"'
-        }
-        data.unite = val
-        if (val === 'Unite(s)') {
-            let i = data.nom.lastIndexOf('//')
-            if (i === -1) {
-                data.poidsPiece = 0
-            } else {
-                const x = data.nom.substring(i + 2)
-                const p = parseInt(x, 10)
-                data.poidsPiece = isNaN(p) ? 0 : p
+        case 'prix' : {
+            try {
+                let e = parseFloat(val) * 100
+                if (e < 0 || e > 999999) {
+                    return 'prix absent ou < 0 ou > 999999'
+                } else {
+                    data.prixN = e
+                    data.prix = formatPrix(e)
+                    return ''
+                }
+            } catch (err) {
+                return 'prix absent ou < 0 ou > 999999'
             }
-        } else {
-            data.poidsPiece = -1
         }
-        return ''
-    }
-
-    majCateg (data, val) {
-        if (!val || categories.indexOf(val) === -1) {
-            return 'catégorie absente ou pas dans la liste des catègories reconnues'
+        case 'unite' : {
+            if (!val.startsWith('Unit') && val !== 'kg') {
+                return 'unite doit valoir "Unite(s) ou Unité(s)" ou "kg" - [' + val + '] trouvé'
+            }
+            data.unite = val
+            if (val === 'Unite(s)') {
+                let i = data.nom.lastIndexOf('//')
+                if (i === -1) {
+                    data.poidsPiece = 0
+                } else {
+                    const x = data.nom.substring(i + 2)
+                    const p = parseInt(x, 10)
+                    data.poidsPiece = isNaN(p) ? 0 : p
+                }
+            } else {
+                data.poidsPiece = -1
+            }
+            return ''
         }
-        data.categorie = val
-    }
-
-    majEAN (data, ean) {
-        let x = editEAN(ean)
-        if (!x) {
-            return 'code barre non numérique ou pas de longueur 6, 12 ou 13'
+        case 'code-barre' : {
+            let x = editEAN(val)
+            if (!x) {
+                return 'code barre non numérique ou pas de longueur 6, 12 ou 13'
+            }
+            data['code-barre'] = x
+            data.ean6 = x.substring(1, 7)
+            return ''
         }
-        data['code-barre'] = x
-        data.ean6 = x.substring(1, 7)
-        return ''
-    }
-
-    majImage (data, image) {
-        if (image && !estBase64(image)) {
-            return 'l\'image est encodée'
+        case 'categorie' : {
+            if (!val || categories.indexOf(val) === -1) {
+                return 'catégorie absente ou pas dans la liste des catègories reconnues'
+            }
+            data.categorie = val
+            return ''
         }
-        data.image = image || ''
-        return ''
-    }
-
-    decore (data) {
-        data.erreurs = []
-        let e
-        e = this.majNom(data, data.nom)
-        if (e) { data.erreurs.push(e) }
-
-        e = this.majEAN(data, data['code-barre'])
-        if (e) { data.erreurs.push(e) }
-
-        e = this.majId (data, data.id)
-        if (e) { data.erreurs.push(e) }
-
-        e = this.majUKg (data, data.unite)
-        if (e) { data.erreurs.push(e) }
-
-        e = this.majPrix (data, data.prix)
-        if (e) { data.erreurs.push(e) }
-
-        e = this.majCateg (data, data.categorie)
-        if (e) { data.erreurs.push(e) }
-
-        e = this.majImage (data, data.image)
-        if (e) { data.erreurs.push(e) }
-    }
-
-    clone(data) {
-        const a1 = {}
-        a1.id = data.id
-        a1['code-barre'] = data['code-barre']
-        a1.prix = data.prix
-        a1.categorie = data.categorie
-        a1.unite = data.unite
-        a1.image = data.image
-        return a1
+        case 'image' : {
+            if (val && !estBase64(val)) {
+                return 'l\'image est encodée'
+            }
+            data.image = val || ''
+            return ''
+        }
     }
 }

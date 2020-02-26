@@ -25,7 +25,7 @@ export function dateHeure () {
 export function formatPrix (p) {
     if (!p || p < 0) { return '0.00' }
     const e = Math.floor(p / 100)
-    const c = p % 100
+    const c = Math.round(p % 100)
     return '' + e + '.' + (c > 9 ? c : '0' + c)
 }
 
@@ -35,7 +35,7 @@ export function formatPoids (p) {
       return p.toString() + 'g'
     }
     const kg = Math.floor(p / 1000)
-    const g = p % 1000
+    const g = Math.round(p % 1000)
     return kg + ', ' + ((g < 10 ? '00' : (g < 100 ? '0' : '')) + g) + 'Kg'
     // return '13,457Kg'
   }

@@ -43,9 +43,13 @@
             <q-item-section avatar><q-icon class="menuButton" :name="'cloud_download'"/></q-item-section>
             <q-item-section class="menuText">Importation depuis ODOO</q-item-section>
           </q-item>
-         <q-item clickable class="bg-grey-1" v-ripple @click="fichierlocal = true;fichierImport = null">
+         <q-item clickable class="bg-grey-1" v-ripple @click="fichierlocal = true;fichierImport = null;panneauDroit = false">
             <q-item-section avatar><q-icon class="menuButton" :name="'add_box'"/></q-item-section>
             <q-item-section class="menuText">Importer un fichier local comme modèle</q-item-section>
+          </q-item>
+         <q-item clickable class="bg-grey-1" v-ripple @click="panneauDroit = false;nouveauFichier()">
+            <q-item-section avatar><q-icon class="menuButton" :name="'add_box'"/></q-item-section>
+            <q-item-section class="menuText">Nouveau modèle</q-item-section>
           </q-item>
           <q-separator />
           <q-item class="column">
@@ -150,6 +154,20 @@
         </q-card-section>
         <q-card-actions align="right">
           <q-btn size="1.5rem" flat label="J'ai lu" color="negative" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <q-dialog v-model="info">
+      <q-card>
+        <q-card-section>
+          <div class="text-h6">Information</div>
+        </q-card-section>
+        <q-card-section class="q-pt-none">
+          {{ texteAlerte }}
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn size="1.5rem" flat label="J'ai lu" color="positive" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -261,6 +279,7 @@ export default {
       envoye: false,
       exitApp: false,
       alerte: false,
+      info: false,
       enreg: false,
       dhArchivage: '',
       texteAlerte: '',
@@ -282,6 +301,14 @@ export default {
     erreur (msg, err) {
       this.texteAlerte = msg + (err ? '\n' + err : '')
       this.alerte = true
+      this.panneauGauche = false
+      this.panneauDroit = false
+      this.modifie = false
+    },
+
+    information (msg) {
+      this.texteAlerte = msg
+      this.info = true
       this.panneauGauche = false
       this.panneauDroit = false
       this.modifie = false
@@ -317,6 +344,22 @@ export default {
       }
     },
 
+    async nouveauFichier () {
+      if (await this.verifOuverture()) {
+        this.panneauDroit = false
+        this.articles = []
+        this.selArticles = []
+        this.fichier = new Fichier('$N')
+        try {
+          this.articles = await this.fichier.lire()
+          this.selArticles = this.articles
+        } catch (e) {
+          this.fichier = null
+          this.erreur('Le nouveau fichier est corrompu ou inaccessible.', e.message)
+        }
+      }
+    },
+
     async importFichier () {
       this.fichierlocal = false
       let f = this.fichierImport
@@ -324,21 +367,16 @@ export default {
         this.erreur('Le fichier sélectionné doit être un ".csv".')
         return
       }
-      let n = this.fichier.stats()
-      if (n) {
-        this.erreur('Le fichier en cours a des modifications non enregistrées. Les annuler ou enregistrer avant')
-        return
-      }
       try {
         await copieFichier(f.name, f.path)
         await this.ouvrirFichier(f.name)
       } catch (err) {
-        this.erreur('Le fichier sélectionné n\'a pu être importé comme modèle.\n', err.message)
+        this.erreur('Le fichier sélectionné n\'a pas pu être importé comme modèle.\n', err.message)
       }
     },
 
     ouvrirODOO () {
-
+      this.information('Cette fonctionnalité est en cours de développement')
     },
 
     async enregModele () {

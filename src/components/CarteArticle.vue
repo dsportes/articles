@@ -6,7 +6,10 @@
     </q-chip>
   </div>
   <div class="carteArticle shadow-5 row no-wrap justify-start items-center">
-    <div class="col-auto"><img class="image" :src="'data:image/jpeg;base64,' + article.image"></div>
+    <div class="col-auto">
+      <img v-if="article.image.length !== 0" class="image" :src="'data:image/jpeg;base64,' + article.image">
+      <div class="image  bg-grey-4"></div>
+    </div>
     <div class="col-auto column items-start droite">
       <div class="col-auto prix">{{ article.id }}</div>
       <div class="col-auto prix">{{ article['code-barre'].substring(1, 7) }}</div>

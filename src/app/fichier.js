@@ -1,4 +1,4 @@
-// CSV : id nom code-barre prix unite image
+// CSV : id nom code-barre prix categorie unite image
 /* Décor :
 n : numéro de ligne dans le fichier (identifiant)
 nomN : nom normalisé, en majuscule et sans accent
@@ -12,26 +12,28 @@ prixN : prix sous forme numérique
 */
 
 import { config } from './config'
-import { removeDiacritics, editEAN, formatPrix, dateHeure } from './global'
-const Stream = require('stream')
-
-export const enteteCSV = '"id";"nom";"code-barre";"prix";"unite";"image"\n'
-
+import { removeDiacritics, editEAN, formatPrix, dateHeure, estBase64 } from './global'
+const { Readable } = require('stream')
 const csv = require('csv-parser')
 const fs = require('fs')
 const path = require('path')
 const createCsvStringifier = require('csv-writer').createObjectCsvStringifier
 
+export const enteteCSV = '"id";"nom";"code-barre";"prix";"categorie";"unite";"image"\n'
+export const ligne1 = '99999;"Mon beau produit";4123456123450;1.0;"A";"Unite(s)";""\n'
+
 const dir = config.dir
 const archivesPath = path.join(dir, 'archives')
 const modelesPath = path.join(dir, 'modèles')
 const articlesPath = path.join(dir, 'articles.csv')
+const categories = config.categories || ['F', 'L', 'V', 'A']
 const maxArch = config.nbMaxArchives ? config.nbMaxArchives : 10
 const header = [
     { id: 'id', title: 'id' },
     { id: 'nom', title: 'nom' },
     { id: 'code-barre', title: 'code-barre' },
     { id: 'prix', title: 'prix' },
+    { id: 'categorie', title: 'categorie' },
     { id: 'unite', title: 'unite' },
     { id: 'image', title: 'image' }
 ]
@@ -42,6 +44,7 @@ export function eq(a1, a2) {
     a1.id === a2.id &&
     a1['code-barre'] === a2['code-barre'] &&
     a1.prix === a2.prix &&
+    a1.categorie === a2.categorie &&
     a1.unite === a2.unite &&
     a1.image === a2.image
 }
@@ -67,10 +70,6 @@ export function listeArchMod(arch) {
         lst.splice(maxArch, lst.length - maxArch)
     }
     return lst
-}
-
-export function clone(data) {
-    return JSON.parse(JSON.stringify(data))
 }
 
 export function copieFichier(nom, p) {
@@ -105,6 +104,7 @@ export class Fichier {
                 this.path = path.join(modelesPath, this.nom + '.csv')
             }
         } else {
+            this.path = articlesPath
             this.label = 'dernier fichier mis en service'
         }
         this.articles = []
@@ -159,19 +159,25 @@ export class Fichier {
 
     /*
     Si le fichier a pour nom $S l'argument source est le string obtenu par import des données du serveur central (ODOO).
-    Dans les autres cas, soucre est absent.
-    Si le fichier est $N, la source est constituée de la seule entête CSV.
+    Si le fichier est $N,
+        a) soit la source est constituée de la seule entête CSV (elle n'est pas donnée en argument).
+        b) soit c'est un fichier externe dont source donne le path
     Sinon le contenu est lu depuis le fichier dont le path a été défini au constructor (nom arch)
     */
     async lire (source) {
         return new Promise((resolve, reject) => {
             let stream
-            if (this.nom.startsWith('$')) {
-                stream = new Stream()
+            if (this.nom && this.nom.startsWith('$')) {
                 if (this.nom === '$S') {
-                    stream.emit('data', source)
-                } else {
-                    stream.emit(enteteCSV)
+                    stream = Readable.from([source])
+                } else if (this.nom === '$N') {
+                    if (source) {
+                        // en fait source est le path du fichier à importer
+                        stream = fs.createReadStream(source)
+                    } else {
+                        // pas de source, c'est un texte "vide", une entête et une ligne 1 par défaut
+                        stream = Readable.from([enteteCSV, ligne1])
+                    }
                 }
             } else {
                 stream = fs.createReadStream(this.path)
@@ -222,17 +228,6 @@ export class Fichier {
         return this.nbcrees + this.nbmodifies + this.nbsupprimes
     }
 
-    majEAN (data, ean) {
-        let x = editEAN(ean, 0)
-        if (!x) {
-            return 'code barre non numérique ou pas de longueur 6, 12 ou 13 (avec 0 devant)'
-        }
-        data.ean13 = editEAN(ean, 0)
-        data.ean6 = data.ean13.substring(1, 7)
-        data['code-barre'] = data.ean13.substring(1)
-        return ''
-    }
-
     majNom (data, nom) {
         if (!nom || nom.length < 4 || nom.length > 100) {
             return 'nom absent ou de longueur < 4 ou > 100'
@@ -244,12 +239,18 @@ export class Fichier {
     }
 
     majPrix (data, prix) {
-        if (!prix || typeof prix !== 'number' || prix < 0 || prix > 999999) {
+        try {
+            let e = parseFloat(prix) * 100
+            if (e < 0 || e > 999999) {
+                return 'prix absent ou < 0 ou > 999999'
+            } else {
+                data.prixN = e
+                data.prix = formatPrix(e)
+                return ''
+            }
+        } catch (err) {
             return 'prix absent ou < 0 ou > 999999'
         }
-        data.prixN = prix
-        data.prix = formatPrix(prix)
-        return ''
     }
 
     majId (data, id) {
@@ -268,8 +269,8 @@ export class Fichier {
     }
 
     majUKg (data, val) {
-        if (val !== 'Unité(s)' && val !== 'kg') {
-            return 'unite doit valoir "Unité(s)" ou "kg"'
+        if (val !== 'Unite(s)' && val !== 'kg') {
+            return 'unite doit valoir "Unite(s)" ou "kg"'
         }
         data.unite = val
         if (val === 'Unite(s)') {
@@ -287,19 +288,39 @@ export class Fichier {
         return ''
     }
 
+    majCateg (data, val) {
+        if (!val || categories.indexOf(val) === -1) {
+            return 'catégorie absente ou pas dans la liste des catègories reconnues'
+        }
+        data.categorie = val
+    }
+
+    majEAN (data, ean) {
+        let x = editEAN(ean)
+        if (!x) {
+            return 'code barre non numérique ou pas de longueur 6, 12 ou 13'
+        }
+        data['code-barre'] = x
+        data.ean6 = x.substring(1, 7)
+        return ''
+    }
+
+    majImage (data, image) {
+        if (image && !estBase64(image)) {
+            return 'l\'image est encodée'
+        }
+        data.image = image || ''
+        return ''
+    }
+
     decore (data) {
         data.erreurs = []
         let e
         e = this.majNom(data, data.nom)
         if (e) { data.erreurs.push(e) }
 
-        e = editEAN(data['code-barre'], 0)
-        if (e) {
-            data.ean13 = e
-            data.ean6 = data.ean13.substring(1, 7)
-        } else {
-            data.erreurs.push('code barre non numérique ou pas de longueur 6, 12 ou 13 (avec 0 devant)')
-        }
+        e = this.majEAN(data, data['code-barre'])
+        if (e) { data.erreurs.push(e) }
 
         e = this.majId (data, data.id)
         if (e) { data.erreurs.push(e) }
@@ -307,15 +328,24 @@ export class Fichier {
         e = this.majUKg (data, data.unite)
         if (e) { data.erreurs.push(e) }
 
-        try {
-            e = parseFloat(data.prix)
-            if (e < 0 || e > 999999) {
-                data.erreurs.push('prix absent ou < 0 ou > 999999')
-            } else {
-                data.prixN = e
-            }
-        } catch (err) {
-            data.erreurs.push('prix absent ou < 0 ou > 999999')
-        }
+        e = this.majPrix (data, data.prix)
+        if (e) { data.erreurs.push(e) }
+
+        e = this.majCateg (data, data.categorie)
+        if (e) { data.erreurs.push(e) }
+
+        e = this.majImage (data, data.image)
+        if (e) { data.erreurs.push(e) }
+    }
+
+    clone(data) {
+        const a1 = {}
+        a1.id = data.id
+        a1['code-barre'] = data['code-barre']
+        a1.prix = data.prix
+        a1.categorie = data.categorie
+        a1.unite = data.unite
+        a1.image = data.image
+        return a1
     }
 }

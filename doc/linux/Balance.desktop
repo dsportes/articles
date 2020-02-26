@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Balance
+Type=Application
+Exec=/home/daniel/git/bal8/dist/electron/balance-linux-x64/balance
+Terminal=false
+Icon=/home/daniel/git/bal8/balance.png
+NoDisplay=false
+Categories=Development;IDE;
+Name[fr_FR]=Balance

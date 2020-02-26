@@ -165,7 +165,7 @@ module.exports = function (ctx) {
         // win32metadata: { ... }
         // platform: 'linux',
         // platform:'win32'
-        // icon: 'monapp.ico'
+        icon: 'tomate.ico'
       },
 
       builder: {

@@ -62,26 +62,29 @@ export function formatPoids (p) {
   EAN13 ---> 9 780201 134476
   */
   export function editEAN(ean, p) {
-    if (typeof ean !== 'string' || typeof p !== 'number' || p < 0 || p > 99999) { return null }
+    if (typeof ean !== 'string') { return null }
     let s = '' + ean
     if (s.length === 6) {
       s = '0' + s + '000000'
     } else if (s.length === 12) {
       s = '0' + s
-    } else if (s.length !== 13 || !s.startsWith('0')) {
+    } else if (s.length !== 13) {
       return null
     }
-    s = s.substring(s.length - 13)
+    if (typeof p !== 'undefined') {
+      if (typeof p !== 'number' || p < 0 || p > 99999) { return null }
+      let x = '' + p
+      s = s.substrin(0, 7) + ('0000' + x).substring(x.length) + '0'
+    }
+    return s.substring(0, 12) + cleEAN(s)
+  }
+
+  export function cleEAN (s) {
     let v = new Array(13)
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 12; i++) {
       let n = s.charCodeAt(i) - 48
       if (n < 0 || n > 9) { return null }
       v[i] = n
-    }
-    s = '00000' + p
-    s = s.substring(s.length - 5)
-    for (let i = 4; i >= 0; i--) {
-        v[i + 7] = s.charCodeAt(i) - 48
     }
     let x = 0
     for (let i = 10; i >= 0; i = i - 2) { x += v[i] }
@@ -94,10 +97,7 @@ export function formatPoids (p) {
         let q = Math.floor(z / 10) + 1
         c = (q * 10) - z
     }
-    v[12] = c
-    let res = ''
-    for (let i = 0; i < 13; i++) { res += String.fromCharCode(48 + v[i]) }
-    return res
+    String.fromCharCode(48 + c)
   }
 
   const defaultDiacriticsRemovalMap = [

@@ -200,7 +200,7 @@ export class Fichier {
                     if (!this.nom) { ref.push(data) }
                     n++
                     data.n = n
-                    this.articlesI.push(data)
+                    this.articlesI.push(clone(data))
                     data.status = 0
                     decore(data)
                     this.articles.push(data)
@@ -305,22 +305,21 @@ export function maj (data, col, val) {
         case 'code-barre' : {
             let x = editEAN(val)
             if (!x) {
-                return 'code barre non numérique ou pas de longueur 6, 12 ou 13'
+                return 'code barre non numérique ou pas de longueur 12'
             }
             data['code-barre'] = x
-            data.ean6 = x.substring(1, 7)
             return ''
         }
         case 'categorie' : {
             if (!val || categories.indexOf(val) === -1) {
-                return 'catégorie absente ou pas dans la liste des catègories reconnues'
+                return 'catégorie absente ou pas dans la liste des catégories reconnues'
             }
             data.categorie = val
             return ''
         }
         case 'image' : {
             if (val && !estBase64(val)) {
-                return 'l\'image est encodée'
+                return 'image mal encodée'
             }
             data.image = val || ''
             return ''

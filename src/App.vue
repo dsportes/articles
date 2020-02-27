@@ -10,6 +10,7 @@
       </q-toolbar>
       <q-toolbar v-if="fichier" class="col row q-py-sm bg-blue-10 text-white">
         <q-toolbar-title>{{ fichier.label  }}</q-toolbar-title>
+        <q-btn class="q-mx-xs" :size="standardBtnSize" color="primary" text-color="white" @click="ajouterArticle()" icon="add_circle">Ajouter<br>un article</q-btn>
         <q-btn class="q-mx-xs" :size="standardBtnSize" color="white" text-color="blue-10" @click="enreg = true" icon="check_circle">Enregistrer<br>comme modèle</q-btn>
         <q-btn class="q-mx-xs" :size="standardBtnSize" color="white" text-color="blue-10" @click="envoyer()" icon="send">Envoyer<br>aux balances</q-btn>
         <q-btn v-if="fichier && fichier.nom && !fichier.arch" class="q-mx-xs" :size="standardBtnSize" color="negative" text-color="white" @click="detruiremodele = true" icon="delete">Supprimer<br>ce modèle</q-btn>
@@ -239,14 +240,14 @@
       </q-card>
     </q-dialog>
 
-    <fiche-article :fichier="fichier" :max="selArticles.length"></fiche-article>
+    <fiche-article></fiche-article>
    </q-layout>
 </template>
 
 <script>
 import { global, b64u } from './app/global'
 import { config } from './app/config'
-import { Fichier, listeArchMod, copieFichier } from './app/fichier'
+import { Fichier, listeArchMod, copieFichier, colonnes, defVal, decore } from './app/fichier'
 import CarteArticle from './components/CarteArticle.vue'
 import FicheArticle from './components/FicheArticle.vue'
 
@@ -260,7 +261,8 @@ export default {
     this.fichier = new Fichier()
     try {
       this.articles = await this.fichier.lire()
-      this.selArticles = this.articles
+      this.selArticles = []
+      for (let i = 0, a = null; (a = this.articles[i]); i++) { this.selArticles.push(a) }
     } catch (e) {
       this.erreur('Le fichier des articles [articles.csv] est corrompu ou inaccessible.', e.message)
     }
@@ -301,8 +303,19 @@ export default {
 
     b64u (val) { return b64u(val, 4, 32) },
 
-    clicArticle (a, position) {
-      global.ficheArticle.ouvrir(a.n, position)
+    clicArticle (a, pos) {
+      global.ficheArticle.ouvrir(a.n - 1, pos)
+    },
+
+    ajouterArticle () {
+      let data = {}
+      for (let i = 0, c = null; (c = colonnes[i]); i++) { data[c] = defVal[i] }
+      this.articles.push(data)
+      this.selArticles.push(data)
+      data.n = this.articles.length
+      decore(data)
+      this.fichier.stats()
+      this.clicArticle(data, this.selArticles.length - 1)
     },
 
     dataChange () {

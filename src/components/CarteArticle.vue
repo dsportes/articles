@@ -1,6 +1,6 @@
 <template>
 <div style="position:relative">
-  <div v-if="article.erreurs.length" class="chip" @click="erreurs = true">
+  <div v-if="article.erreurs.length" class="chip" @click.stop="erreurs = true">
     <q-chip dense>
         <q-avatar color="negative" text-color="white">{{ article.erreurs.length }}</q-avatar>{{ article.erreurs.length == 1 ? 'erreur' : 'erreurs'}}
     </q-chip>
@@ -12,7 +12,7 @@
     </div>
     <div class="col-auto column items-start droite">
       <div class="col-auto prix">{{ article.id }}</div>
-      <div class="col-auto prix">{{ article['code-barre'].substring(1, 7) }}</div>
+      <div class="col-auto prix">{{ article['code-barre'] }}</div>
       <div class="col-auto prix">{{ article.categorie }}</div>
       <div v-if="article.status !== 0" class="col-auto prix rouge">{{ libstat() }}</div>
     </div>

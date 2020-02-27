@@ -41,10 +41,12 @@ export function formatPoids (p) {
   }
 
   /*
-  Edite le code ean13 du premier paramètre (c'est un string de 6, 12 ou 13 chiffres)
-  en remplaçant les 5 chiffres de droite
-  par le poids p -c'est un nombre- (ou le nombre d'article) et en calculant la clé.
-  Retourne null en cas d'erreur (p > 99999)
+  Le premier paramètre est un code barre à 12 chiffres :
+  en fait le tout premier chiffre sur 13 vaut toujours 0 pour ces articles et est omis
+  Si le second paramètre p (c'est un nombre) est défini, c'est un poids ou un nombre d'articles
+  qui va remplacer les 5 chiffres de droite
+  Dans tous les cas la clé est recalculée?
+  Retourne null en cas d'erreur (ean pas de 12 chiffres, p > 99999)
 
   Calcul de la clé
   Les chiffres sont numérotés de droite à gauche;
@@ -62,27 +64,22 @@ export function formatPoids (p) {
   EAN13 ---> 9 780201 134476
   */
   export function editEAN(ean, p) {
-    if (typeof ean !== 'string') { return null }
-    let s = '' + ean
-    if (s.length === 6) {
-      s = '0' + s + '000000'
-    } else if (s.length === 12) {
-      s = '0' + s
-    } else if (s.length !== 13) {
-      return null
-    }
+    if (typeof ean !== 'string' || ean.length !== 12) { return null }
+    let s = ean
     if (typeof p !== 'undefined') {
       if (typeof p !== 'number' || p < 0 || p > 99999) { return null }
       let x = '' + p
-      s = s.substrin(0, 7) + ('0000' + x).substring(x.length) + '0'
+      s = ean.substrin(0, 0) + ('0000' + x).substring(x.length) + '0'
     }
-    return s.substring(0, 12) + cleEAN(s)
+    let c = cleEAN(s)
+    return !c ? null : s.substring(0, 11) + c
   }
 
   export function cleEAN (s) {
     let v = new Array(13)
-    for (let i = 0; i < 12; i++) {
-      let n = s.charCodeAt(i) - 48
+    v[0] = 0
+    for (let i = 1; i < 13; i++) {
+      let n = s.charCodeAt(i - 1) - 48
       if (n < 0 || n > 9) { return null }
       v[i] = n
     }
@@ -97,7 +94,7 @@ export function formatPoids (p) {
         let q = Math.floor(z / 10) + 1
         c = (q * 10) - z
     }
-    String.fromCharCode(48 + c)
+    return String.fromCharCode(48 + c)
   }
 
   const defaultDiacriticsRemovalMap = [

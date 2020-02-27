@@ -1,29 +1,47 @@
 <template>
 <div>
-  <q-dialog v-model="ficheArticle" persistent>
+  <q-dialog v-model="ficheArticle" full-width persistent>
   <q-layout view="Lhh lpR fff" container class="bg-white">
-    <q-header class="bg-primary column">
-      <q-toolbar class="col-auto">
-        <q-btn round color="primary" icon="skip_previous" />
-        <div>{{ (idx + 1) }} / {{ max }}</div>
-        <q-btn round color="primary" icon="skip_next" />
-        <q-toolbar-title>Article #{{n}} - [{{data.codeCourt}}] Code:{{data.id}}</q-toolbar-title>
-          <q-btn v-if="estmodifie" flat v-close-popup dense icon="done" label="Valider" @click="validerEtFermer()"/>
-          <q-btn v-else flat v-close-popup dense icon="close" label="Fermer" @click="fermer()"/>
+    <q-header class="bg-grey-9 column">
+      <q-toolbar class="col-auto q-py-md">
+        <q-btn :disable="pos === 0" round color="primary" icon="skip_previous" @click="precedent()"/>
+        <div class="q-px-md">{{ (pos + 1) }} / {{ max }}</div>
+        <q-btn :disable="pos === max - 1" round color="primary" icon="skip_next" @click="suivant()"/>
+        <q-toolbar-title>Article #{{data.n}} - [{{data.codeCourt}}] Code:{{data.id}}</q-toolbar-title>
+          <q-btn v-if="estmodifie" dense icon-right="done" color="primary" @click="validerEtFermer()">Valider et fermer</q-btn>
+          <q-btn v-else dense icon-right="close" color="primary" label="Fermer" @click="fermer()"/>
       </q-toolbar>
-      <div class="col-auto row justify-around">
-        <q-btn :disable="!estmodifie" icon="done" color="deep-orange" @click="annuler()">Annuler tous<br>les changements</q-btn>
-        <q-btn :disable="!pasinitial" icon="done" color="deep-orange" @click="retablir()">Rétablir<br>l'état initial</q-btn>
+      <div style="margin: 0 0.5rem">
+      <div class="col-auto row justify-between items-center">
+        <div :class="(this.data.status ? 'text-deep-orange text-h4' : 'text-h5')">{{labelStatus[this.data.status]}}</div>
+        <div class="col-auto row q-gutter-sm">
+          <q-btn class="col-auto" :disable="!estmodifie" icon="undo" color="deep-orange" @click="annuler()">Annuler tous<br>les changements</q-btn>
+          <q-btn class="col-auto" :disable="!pasinitial" icon="replay" color="deep-orange" @click="retablir()">Rétablir<br>l'état initial</q-btn>
+          <q-btn v-if="this.data.status < 4" class="col-auto" icon="undo" color="deep-orange" @click="supprimer()">Supprimer<br>l'article</q-btn>
+          <q-btn v-else icon="redo" class="col-auto" color="deep-orange" @click="reactiver()">Ré-activer<br>l'article</q-btn>
+        </div>
       </div>
-      <q-scroll-area style="height: 50px;">
-        <div v-for="e in data.erreurs" :key="e" class="q-py-xs">{{ e }}</div>
+      </div>
+      <q-scroll-area class="erreurs">
+        <div v-for="e in data.erreurs" :key="e" class="q-py-sm">{{ e }}</div>
       </q-scroll-area>
     </q-header>
     <q-page-container>
-      <div class="ficheArticle shadow-5 column q-pa-md q-ma-md justify-start">
-        <div class="titre">Article : {{data.id}} - [{{data.codeCourt}}</div>
-        <q-input v-model="data.nom" clearable label="Nom" @input="verif()" :rules="[ val => val.length > 6 || 'Un nom a au moins 6 cattactères']"/>
-        <q-input v-model="data.ean6" clearable label="Code barre à 6 chiffres" @input="cb6(value)" :rules="[ val => val.length == 6 || '6 chiffres requis']"/>
+      <div class="column justify-start">
+        <q-input class="shadow-5 input1" v-model="data.nom" clearable label="Nom" @input="verif('nom')" :rules="[ val => (val.length > 6 && val.length < 100) || 'nom absent ou de longueur < 4 ou > 100']">
+          <template v-slot:append>
+            <q-btn round size="xs" color="deep-orange" icon="undo" :disable="data.nom === dataAV.nom" @click="undo('nom')"/>
+            <q-btn round size="xs" color="deep-orange" icon="replay" :disable="!dataI || data.nom === dataI.nom" @click="reinit('nom')"/>
+          </template>
+        </q-input>
+
+        <q-input class="shadow-5 input1" v-model="data['code-barre']" clearable label="Code barre à 12 chiffres (le 0 en tête est omis)" @input="verif('code-barre')" :rules="[ val => val.length == 12 || '12 chiffres requis']">
+          <template v-slot:append>
+            <q-btn round size="xs" color="deep-orange" icon="undo" :disable="data['code-barre'] === dataAV['code-barre']" @click="undo('code-barre')"/>
+            <q-btn round size="xs" color="deep-orange" icon="replay" :disable="!dataI || data['code-barre'] === dataI['code-barre']" @click="reinit('code-barre')"/>
+          </template>
+        </q-input>
+
       </div>
     </q-page-container>
   </q-layout>
@@ -44,11 +62,28 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
+
+  <q-dialog v-model="fermerqm" persistent>
+    <q-card>
+      <q-card-section class="row items-center">
+        <q-avatar icon="block" color="negative" text-color="white"/>
+        <span class="q-ml-sm dialogText">Cet article comporte au moins une erreur. Voulez-vous vraiment le valider et fermer ?</span>
+      </q-card-section>
+
+      <q-card-actions align="right">
+        <q-btn flat size="md" label="Non, je le laisse ouvert pour corriger" color="primary" v-close-popup
+          @click="fermerqm = false;resolve(false)"/>
+        <q-btn flat size="md" label="Oui, je ferme quand-même" color="negative" v-close-popup
+          @click="fermerqm = false;resolve(true)"/>
+      </q-card-actions>
+    </q-card>
+  </q-dialog>
+
 </div>
 </template>
 
 <script>
-import { clone, eq, colonnes, defVal, decore } from '../app/fichier'
+import { clone, eq, colonnes, defVal, decore, maj } from '../app/fichier'
 import { global } from '../app/global'
 
 export default {
@@ -56,10 +91,13 @@ export default {
   mounted() {
     global.ficheArticle = this
   },
-  props: ['fichier', 'max'],
   data () {
     return {
+      labelStatus: ['inchangé', 'créé', 'modifié', 'supprimé', 'créé puis supprimé'],
+      fichier: null,
+      max: 0,
       ficheArticle: false,
+      fermerqm: false,
       idx: 0,
       pos: 0,
       data: {},
@@ -95,17 +133,58 @@ export default {
   },
 
   methods: {
+    filtreErr (c) {
+      let x = []
+      let v = this.data.erreurs
+      for (let i = 0, e = null; (e = v[i]); i++) { if (!e.startsWith(c)) { x.push(e) } }
+      this.data.erreurs = x
+    },
+
+    undo (c) {
+      this.data[c] = this.dataAV[c]
+      this.verif(c)
+    },
+
+    reinit (c) {
+      if (this.dataI) {
+        this.data[c] = this.dataI[c]
+        this.verif(c)
+      }
+    },
+
+    verif (c) {
+      this.filtreErr(c.substring(0, 2))
+      if (!this.data[c]) { this.data[c] = '' }
+      maj(this.data, c, this.data[c])
+      this.setStatus()
+    },
+
+/*
+    verifCB () {
+      this.filtreErr('co')
+      if (!this.data['code-barre']) { this.data['code-barre'] = '' }
+      let c = this.data['code-barre']
+      if (c.length === 12) {
+        maj(this.data, 'code-barre', c)
+      } else {
+        this.data.erreurs.push('code barre de longueur différente de 12')
+      }
+      this.setStatus()
+    },
+*/
     ouvrir (idx, pos) {
+      this.fichier = global.appVue.fichier
+      this.max = global.appVue.selArticles.length
       this.idx = idx
       this.pos = pos
       this.data = this.fichier.articles[this.idx]
-      this.dataAv = clone(this.data)
+      this.dataAV = clone(this.data)
       this.dataI = this.idx < this.fichier.articlesI.length ? this.fichier.articlesI[this.idx] : null
       this.ficheArticle = true
     },
 
     perdreValidation () {
-      if (!this.estmodifie()) { return true }
+      if (!this.estmodifie) { return true }
       this.perdreModif = true
       return new Promise(resolve => {
         this.resolve = resolve
@@ -115,27 +194,37 @@ export default {
     async precedent () {
       if (this.pos === 0) { return }
       this.pos--
-      if (this.estmodifie()) {
+      if (this.estmodifie) {
         if (await this.perdreValidation()) {
           this.annuler()
         } else {
           this.valider()
         }
       }
+      this.idx = global.appVue.selArticles[this.pos].n
       this.ouvrir(this.idx, this.pos)
     },
 
     async suivant () {
-      if (this.idx === this.fichier.articles.length - 1) { return }
+      if (this.pos === this.max - 1) { return }
       this.pos++
-      if (this.estmodifie()) {
+      if (this.estmodifie) {
         if (await this.perdreValidation()) {
           this.annuler()
         } else {
           this.valider()
         }
       }
+      this.idx = global.appVue.selArticles[this.pos].n
       this.ouvrir(this.idx, this.pos)
+    },
+
+    supprimer () {
+         this.data.status = this.data.status === 1 ? 4 : 3
+    },
+
+    reactiver () {
+      this.data.status = this.idx >= this.fichier.articlesI.length ? 1 : (eq(this.data, this.dataI) ? 0 : 2)
     },
 
     setStatus () {
@@ -160,12 +249,20 @@ export default {
 
     retablir () {
       const cr = this.idx >= this.fichier.articlesI.length
-      const src = !cr ? this.fichier.articleI : defVal
+      const src = !cr ? this.fichier.articlesI : defVal
       for (let i = 0, f = null; (f = colonnes[i]); i++) { this.data[f] = src[f] }
       this.valider()
     },
 
-    validerEtFermer() {
+    fermerQuandMeme () {
+      this.fermerqm = true
+      return new Promise(resolve => {
+        this.resolve = resolve
+      })
+    },
+
+    async validerEtFermer() {
+      if (this.data.erreurs.length !== 0 && !(await this.fermerQuandMeme())) { return }
       this.valider()
       this.ficheArticle = false
     },
@@ -186,8 +283,19 @@ export default {
   padding: 1rem 0
   font-weight: bold
 
+.erreurs
+  height: 5rem
+  background-color: $grey-3
+  color: $deep-orange
+  margin: 0.5rem
+  padding: 0.5rem
+
 .dialogText
   font-size: $largeFontSize
+
+.input1
+  margin: 0.5rem
+  padding: 0rem 0.5rem 2rem 0.5rem
 
 </style>
 

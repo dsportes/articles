@@ -28,6 +28,13 @@
     </q-header>
     <q-page-container>
       <div class="column justify-start">
+        <q-input class="shadow-5 input1" v-model="data.id" clearable label="Code article de 1 à 6 chiffres" @input="verif('id')" :rules="[ val => val.length > 0 && val.length <= 6 || '1 à 6 chiffres requis']">
+          <template v-slot:append>
+            <q-btn round size="xs" color="deep-orange" icon="undo" :disable="data.id === dataAV.id" @click="undo('id')"/>
+            <q-btn round size="xs" color="deep-orange" icon="replay" :disable="!dataI || data.id === dataI.id" @click="reinit('id')"/>
+          </template>
+        </q-input>
+
         <q-input class="shadow-5 input1" v-model="data.nom" clearable label="Nom" @input="verif('nom')" :rules="[ val => (val.length > 6 && val.length < 100) || 'nom absent ou de longueur < 4 ou > 100']">
           <template v-slot:append>
             <q-btn round size="xs" color="deep-orange" icon="undo" :disable="data.nom === dataAV.nom" @click="undo('nom')"/>
@@ -41,6 +48,23 @@
             <q-btn round size="xs" color="deep-orange" icon="replay" :disable="!dataI || data['code-barre'] === dataI['code-barre']" @click="reinit('code-barre')"/>
           </template>
         </q-input>
+
+        <q-input class="shadow-5 input1" v-model="data.prixS" clearable :label="'Saisir le prix en centimes ==> ' + (data.prixS !== '0' ? data.prix : '0') + '€'" @input="verif('prixS')" :rules="[ val => (!val || val.length === 0 || val.length < 6) || 'prix absent ou 0 ou supérieur à 99999']">
+          <template v-slot:append>
+            <q-btn round size="xs" color="deep-orange" icon="undo" :disable="data.prix === dataAV.prix" @click="undo('prix')"/>
+            <q-btn round size="xs" color="deep-orange" icon="replay" :disable="!dataI || data.prix === dataI.prix" @click="reinit('prix')"/>
+          </template>
+        </q-input>
+
+        <div class="q-gutter-sm shadow-5 input1">
+          <div>Catégorie</div>
+          <q-radio v-for="c in categories" :key="c" :val="c" :label="c" v-model="data.categorie"/>
+        </div>
+
+        <div class="q-gutter-sm shadow-5 input1">
+          <q-radio v-model="data.unite" val="kg" label="au Kg" />
+          <q-radio v-model="data.unite" val="Unité(s)" label="à l'unité" />
+        </div>
 
       </div>
     </q-page-container>
@@ -85,6 +109,11 @@
 <script>
 import { clone, eq, colonnes, defVal, decore, maj } from '../app/fichier'
 import { global } from '../app/global'
+import { config } from '../app/config'
+
+const defValObj = {}
+for (let i = 0, c = null; (c = colonnes[i]); i++) { defValObj[c] = defVal[i] }
+decore(defValObj)
 
 export default {
   name: 'FicheArticle',
@@ -94,6 +123,7 @@ export default {
   data () {
     return {
       labelStatus: ['inchangé', 'créé', 'modifié', 'supprimé', 'créé puis supprimé'],
+      categories: config.categories || ['F', 'L', 'V', 'A'],
       fichier: null,
       max: 0,
       ficheArticle: false,
@@ -153,25 +183,19 @@ export default {
     },
 
     verif (c) {
+      let err
       this.filtreErr(c.substring(0, 2))
       if (!this.data[c]) { this.data[c] = '' }
-      maj(this.data, c, this.data[c])
+      if (c === 'prixS') {
+        if (!this.data.prixS) { this.data.prixS = '0' }
+        err = maj(this.data, 'prix', this.data.prixS)
+      } else {
+        err = maj(this.data, c, this.data[c])
+      }
+      if (err) { this.data.erreurs.push(err) }
       this.setStatus()
     },
 
-/*
-    verifCB () {
-      this.filtreErr('co')
-      if (!this.data['code-barre']) { this.data['code-barre'] = '' }
-      let c = this.data['code-barre']
-      if (c.length === 12) {
-        maj(this.data, 'code-barre', c)
-      } else {
-        this.data.erreurs.push('code barre de longueur différente de 12')
-      }
-      this.setStatus()
-    },
-*/
     ouvrir (idx, pos) {
       this.fichier = global.appVue.fichier
       this.max = global.appVue.selArticles.length
@@ -230,7 +254,7 @@ export default {
     setStatus () {
       const cr = this.idx >= this.fichier.articlesI.length
       if (cr) {
-        this.data.status = eq(this.data, defVal) ? 4 : 1
+        this.data.status = eq(this.data, defValObj) ? 4 : 1
       } else {
         this.data.status = eq(this.data, this.dataI) ? 0 : 2
       }
@@ -240,6 +264,7 @@ export default {
       this.setStatus()
       decore(this.data)
       this.fichier.stats()
+      global.appVue.dataChange()
     },
 
     annuler () {
@@ -249,7 +274,7 @@ export default {
 
     retablir () {
       const cr = this.idx >= this.fichier.articlesI.length
-      const src = !cr ? this.fichier.articlesI : defVal
+      const src = !cr ? this.fichier.articlesI[this.idx] : defValObj
       for (let i = 0, f = null; (f = colonnes[i]); i++) { this.data[f] = src[f] }
       this.valider()
     },

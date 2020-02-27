@@ -15,6 +15,19 @@
         <q-btn class="q-mx-xs" :size="standardBtnSize" color="white" text-color="blue-10" @click="envoyer()" icon="send">Envoyer<br>aux balances</q-btn>
         <q-btn v-if="fichier && fichier.nom && !fichier.arch" class="q-mx-xs" :size="standardBtnSize" color="negative" text-color="white" @click="detruiremodele = true" icon="delete">Supprimer<br>ce modèle</q-btn>
       </q-toolbar>
+      <div v-if="fichier" class="col row justify-center items-center q-gutter-md q-pa-sm bg-grey-9">
+        <q-select style="min-width:10rem" color="black" bg-color="grey-1" filled bottom-slots v-model="tri" :options="optionsTri" label="Critère de tri" dense options-dense >
+          <template v-slot:prepend>
+            <q-icon name="sort" @click.stop />
+          </template>
+        </q-select>
+        <q-select style="min-width:25rem" color="black" bg-color="grey-1" filled bottom-slots v-model="filtre" :options="optionsFiltre" label="Critère de filtre" dense options-dense >
+          <template v-slot:prepend>
+            <q-icon name="filter_list" @click.stop />
+          </template>
+        </q-select>
+        <q-input style="min-width:6rem;position:relative;top:-0.9rem" color="black" bg-color="grey-1" dense filled v-model="argFiltre" label="argument ..."/>
+      </div>
     </q-header>
 
     <q-drawer v-model="panneauGauche" elevated overlay :width="500" bordered content-dense>
@@ -85,11 +98,12 @@
     <q-footer elevated class="q-py-md bg-black text-white status">
       <div v-if="!fichier || !articles.length">0 article</div>
       <div v-else class="row">
-        <div class="q-px-xs">{{ articles.length }} article(s)</div>
-        <div v-if="fichier.nbcrees !== 0" class="q-px-xs">{{ fichier.nbcrees }} créé(s)</div>
-        <div v-if="fichier.nbmodifies !== 0" class="q-px-xs">{{ fichier.nbmodifies }} modifié(s)</div>
-        <div v-if="fichier.nbsupprimes !== 0" class="q-px-xs">{{ fichier.nbsupprimes }} supprimé(s)</div>
-        <div v-if="fichier.nberreurs !== 0" class="q-px-xs artErr">{{ fichier.nberreurs }} en erreur(s)</div>
+        <div class="q-px-xs">{{ articles.length }} article(s) - </div>
+        <div class="q-px-xs">{{ selArticles.length }} article(s) filtrés - </div>
+        <div v-if="fichier.nbcrees !== 0" class="q-px-xs">{{ fichier.nbcrees }} créé(s) - </div>
+        <div v-if="fichier.nbmodifies !== 0" class="q-px-xs">{{ fichier.nbmodifies }} modifié(s) - </div>
+        <div v-if="fichier.nbsupprimes !== 0" class="q-px-xs">{{ fichier.nbsupprimes }} supprimé(s) - </div>
+        <div v-if="fichier.nberreurs !== 0" class="q-px-xs artErr">{{ fichier.nberreurs }} en erreur(s) - </div>
       </div>
     </q-footer>
 
@@ -120,16 +134,12 @@
     <q-dialog v-model="fichierlocal" class="modeleDialog">
       <q-card>
         <q-card-section>
-          <div class="text-h6">Sélection du fichier à importer</div>
+          <q-file v-model="fichierImport" label="Choisir le fichier à importer" style="width:30rem;"/>
         </q-card-section>
-        <q-card-section class="q-pt-none">
-          <q-input @input="val => { fichierImport = val[0] }" filled type="file" hint="Fichier à importer"/>
-      </q-card-section>
         <q-card-actions align="right">
-          <q-btn size="1.5rem" label="Annuler" color="negative" v-close-popup />
-          <q-btn size="1.5rem" label="Valider" :disable="fichierImport ? false : true" color="positive" @click="importFichier()" />
+          <q-btn size="1.5rem" flat label="Je renonce" color="negative" v-close-popup />
         </q-card-actions>
-      </q-card>
+     </q-card>
     </q-dialog>
 
     <q-dialog v-model="envoye">
@@ -245,11 +255,33 @@
 </template>
 
 <script>
-import { global, b64u } from './app/global'
+import { global, b64u, removeDiacritics } from './app/global'
 import { config } from './app/config'
 import { Fichier, listeArchMod, copieFichier, colonnes, defVal, decore } from './app/fichier'
 import CarteArticle from './components/CarteArticle.vue'
 import FicheArticle from './components/FicheArticle.vue'
+
+const optionsFiltre = [
+  'Tous',
+  'En erreur',
+  'Bio',
+  'Non bio',
+  'A l\'unité',
+  'A l\'unité AVEC le poids à la pièce',
+  'A l\'unité SANS le poids à la pièce',
+  'Au Kg',
+  'Sans image',
+  'Avec image de largeur > à ...',
+  'Dont le code commence par ...',
+  'Dont le code barre commence par ...',
+  'Dont le code court est ...',
+  'Dont le nom contient ...',
+  'Dont le nom commence par ...',
+  'Créés',
+  'Modifiés',
+  'Supprimés',
+  'Inchangés'
+]
 
 export default {
   name: 'App',
@@ -289,12 +321,40 @@ export default {
       enreg: false,
       dhArchivage: '',
       texteAlerte: '',
-      fichierImport: '',
+      fichierImport: null,
       articles: [],
       selArticles: [],
       index: 0,
       position: 0,
-      nomModele: ''
+      nomModele: '',
+      tri: 'Numéro de ligne',
+      itri: 0,
+      optionsTri: ['Numéro de ligne', 'Code de l\'article', 'Nom (alphabétique)', 'Code barre', 'Code court à 2 lettres'],
+      filtre: 'Tous',
+      ifilre: 0,
+      optionsFiltre: optionsFiltre,
+      argFiltre: ''
+    }
+  },
+
+  watch: {
+    fichierImport (apres) {
+      this.fichierlocal = false
+      if (apres) {
+        this.importFichier(apres.name, apres.path)
+        this.fichierImport = null
+      }
+    },
+    tri (option, avant) {
+      this.itri = this.optionsTri.indexOf(option)
+      if (this.itri !== -1 && option !== avant) { this.trier() }
+    },
+    filtre (option, avant) {
+      this.ifiltre = this.optionsFiltre.indexOf(option)
+      if (this.ifiltre !== -1 && option !== avant) { this.filtrer() }
+    },
+    argFiltre (option, avant) {
+      if (option !== avant) { this.filtrer() }
     }
   },
 
@@ -302,6 +362,70 @@ export default {
     quit () { config.quit() },
 
     b64u (val) { return b64u(val, 4, 32) },
+
+    trier () {
+      let c = this.itri
+      // optionsTri: ['Numéro de ligne', 'Code de l\'article', 'Nom (alphabétique)', 'Code barre', 'Code court à 2 lettres']
+      switch (c) {
+        case 0 : { this.selArticles.sort((a, b) => { return a.n > b.n ? 1 : (a.n < b.n ? -1 : 0) }); return }
+        case 1 : { this.selArticles.sort((a, b) => { return a.id > b.id ? 1 : (a.id < b.id ? -1 : 0) }); return }
+        case 2 : { this.selArticles.sort((a, b) => { return a.nom > b.nom ? 1 : (a.nom < b.nom ? -1 : 0) }); return }
+        case 3 : { this.selArticles.sort((a, b) => { return a['code-barre'] > b['code-barre'] ? 1 : (a['code-barre'] < b['code-barre'] ? -1 : 0) }); return }
+        case 4 : { this.selArticles.sort((a, b) => { return a.codeCourt > b.codeCourt ? 1 : (a.codeCourt < b.codeCourt ? -1 : 0) }) }
+      }
+    },
+
+    filtrer () {
+      /*
+      0 'Tous',
+      1 'En erreur',
+      2 'Bio',
+      3 'Non bio',
+      4 'A l\'unité',
+      5 'A l\'unité AVEC le poids à la pièce',
+      6 'A l\'unité SANS le poids à la pièce',
+      7 'Au Kg',
+      8 'Sans image',
+      9 'Avec image de largeur > à ...',
+      10 'Dont le code commence par ...',
+      11 'Dont le code barre commence par ...',
+      12 'Dont le code court est ...',
+      13 'Dont le nom contient ...',
+      14 'Dont le nom commence par ...',
+      15 'Créés',
+      16 'Modifiés',
+      17 'Supprimés'
+      18 'Inchangés'
+      */
+      let c = this.ifiltre
+      let n = parseInt(this.argFiltre)
+      if (isNaN(n)) { n = 0 }
+      let p = this.argFiltre || ''
+      let P = removeDiacritics(p.toUpperCase())
+      let s = this.articles
+      switch (c) {
+        case 0 : { this.selArticles = s.filter(a => true); return }
+        case 1 : { this.selArticles = s.filter(a => a.erreurs.length !== 0); return }
+        case 2 : { this.selArticles = s.filter(a => a.bio); return }
+        case 3 : { this.selArticles = s.filter(a => !a.bio); return }
+        case 4 : { this.selArticles = s.filter(a => a.poidsPiece >= 0); return }
+        case 5 : { this.selArticles = s.filter(a => a.poidsPiece > 0); return }
+        case 6 : { this.selArticles = s.filter(a => a.poidsPiece === 0); return }
+        case 7 : { this.selArticles = s.filter(a => a.poidsPiece === -1); return }
+        case 8 : { this.selArticles = s.filter(a => !a.image); return }
+        case 9 : { this.selArticles = s.filter(a => a.imagel > n); return }
+        case 10 : { this.selArticles = s.filter(a => a.id.startsWith(p)); return }
+        case 11 : { this.selArticles = s.filter(a => a['code-barre'].startsWith(p)); return }
+        case 12 : { this.selArticles = s.filter(a => a.codeCourt.toUpperCase.startsWith(p.toUpperCase)); return }
+        case 13 : { this.selArticles = s.filter(a => a.nomN.indexOf(P) !== -1); return }
+        case 14 : { this.selArticles = s.filter(a => a.nomN.startsWith(P)); return }
+        case 15 : { this.selArticles = s.filter(a => a.status === 1 || a.status === 4); return }
+        case 16 : { this.selArticles = s.filter(a => a.status === 2); return }
+        case 17 : { this.selArticles = s.filter(a => a.status >= 3); return }
+        case 18 : { this.selArticles = s.filter(a => a.status === 0) }
+      }
+      this.trier()
+    },
 
     clicArticle (a, pos) {
       global.ficheArticle.ouvrir(a.n - 1, pos)
@@ -320,6 +444,8 @@ export default {
 
     dataChange () {
       this.fichier.stats()
+      this.filtrer()
+      this.trier()
     },
 
     erreur (msg, err) {
@@ -384,16 +510,14 @@ export default {
       }
     },
 
-    async importFichier () {
-      this.fichierlocal = false
-      let f = this.fichierImport
-      if (f.type !== 'text/csv') {
+    async importFichier (name, path) {
+      if (!name.endsWith('.csv')) {
         this.erreur('Le fichier sélectionné doit être un ".csv".')
         return
       }
       try {
-        await copieFichier(f.name, f.path)
-        await this.ouvrirFichier(f.name)
+        await copieFichier(name, path)
+        await this.ouvrirFichier(name)
       } catch (err) {
         this.erreur('Le fichier sélectionné n\'a pas pu être importé comme modèle.\n', err.message)
       }
@@ -451,7 +575,7 @@ export default {
   left: - (1.5 * $largeFontSize)
 
 .status
-  font-size: $smallFontSize
+  font-size: $standardFontSize
 
 .menuText
   font-size: $largeFontSize

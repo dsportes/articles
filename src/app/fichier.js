@@ -271,24 +271,27 @@ export function maj (data, col, val) {
         }
         case 'prix' : {
             try {
-                let e = parseFloat(val) * 100
-                if (e < 0 || e > 999999) {
-                    return 'prix absent ou < 0 ou > 999999'
+                let e
+                e = val.indexOf('.') === -1 ? parseInt(val) : Math.round(parseFloat(val) * 100)
+                if (isNaN(e) || (e <= 0 || e > 999999)) {
+                    return 'prix absent ou < 0 ou > 999999 ou non numérique'
                 } else {
                     data.prixN = e
                     data.prix = formatPrix(e)
+                    data.prixS = '' + e
                     return ''
                 }
             } catch (err) {
-                return 'prix absent ou < 0 ou > 999999'
+                return 'prix absent ou < 0 ou > 999999 ou non numérique'
             }
         }
         case 'unite' : {
-            if (!val.startsWith('Unit') && val !== 'kg') {
+            if (!val || (!val.startsWith('Unit') && val !== 'kg')) {
                 return 'unite doit valoir "Unite(s) ou Unité(s)" ou "kg" - [' + val + '] trouvé'
             }
             data.unite = val
-            if (val === 'Unite(s)') {
+            if (val.startsWith('Unit')) {
+                data.unite = 'Unité(s)'
                 let i = data.nom.lastIndexOf('//')
                 if (i === -1) {
                     data.poidsPiece = 0
@@ -322,6 +325,8 @@ export function maj (data, col, val) {
                 return 'image mal encodée'
             }
             data.image = val || ''
+            data.imagel = val ? 10 : 0
+            data.imageh = val ? 10 : 0
             return ''
         }
     }

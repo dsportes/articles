@@ -12,6 +12,7 @@ export const config = new Config()
 let dir
 
 try {
+    config.version = remote.app.getVersion()
     const argv = remote.process.argv
     for (let i = 0; i < argv.length; i++) {
         const x = argv[i]

@@ -33,9 +33,8 @@
     <q-drawer v-model="panneauGauche" elevated overlay :width="500" bordered content-dense>
       <q-btn v-if="panneauGauche" class="btnfermer btnfermerg" @click="panneauGauche = false" :size="standardBtnSize" round unelevated color="accent" icon="chevron_left"/>
       <q-list>
-        <q-item clickable v-ripple class="column zoneErr">
-          <div v-if="this.articles.length == 0" class="col">Pas d'article</div>
-          <div v-else class="col">{{this.articles.length}} articles</div>
+        <q-item>
+          <div class="text-h6 bold">Version de l'application : {{ version }}</div>
         </q-item>
         <q-separator />
         <q-item clickable class="bg-grey-1" v-ripple @click="exitApp = true">
@@ -305,6 +304,7 @@ export default {
 
   data () {
     return {
+      version: config.version,
       chargement: false,
       fichier: null,
       modifie: false,

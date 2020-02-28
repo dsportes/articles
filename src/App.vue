@@ -87,7 +87,9 @@
     </q-drawer>
 
     <q-page-container>
-      <div v-if="selArticles.length === 0" class="pasArticles" style="height:100vh;margin-top:40vh">Pas d'articles</div>
+      <div v-if="selArticles.length === 0" class="pasArticles" style="height:100vh;margin-top:40vh">
+        {{ chargement ? 'Chargement en cours ...' : 'Pas d\'articles' }}
+      </div>
       <div v-else style="width:100%">
         <div v-for="(a, index) in selArticles" :key="index" @click="clicArticle(a, index)">
           <carte-article :article="a"></carte-article>
@@ -104,6 +106,7 @@
         <div v-if="fichier.nbmodifies !== 0" class="q-px-xs">{{ fichier.nbmodifies }} modifié(s) - </div>
         <div v-if="fichier.nbsupprimes !== 0" class="q-px-xs">{{ fichier.nbsupprimes }} supprimé(s) - </div>
         <div v-if="fichier.nberreurs !== 0" class="q-px-xs artErr">{{ fichier.nberreurs }} en erreur(s) - </div>
+        <div v-if="fichier.doublons.length !== 0" class="q-px-xs artErr">{{ fichier.doublons.length }} doublon(s) de code article - </div>
       </div>
     </q-footer>
 
@@ -191,7 +194,6 @@
           <q-avatar icon="exit_to_app" color="negative" text-color="white"/>
           <span class="q-ml-sm dialogText">Voulez-vous vraiment quitter l'application ?</span>
         </q-card-section>
-
         <q-card-actions align="right">
           <q-btn :size="largeBtnSize" class="dialogText" flat label="Non, je la garde active" color="primary" v-close-popup
             @click="exitApp = false; panneauGauche = false"/>
@@ -207,7 +209,6 @@
           <q-avatar icon="block" color="negative" text-color="white"/>
           <span class="q-ml-sm dialogText">Le fichier affiché a été modifié et n'a pas été sauvé comme modèle ni mis en service. Voulez-vous vraiment perdre les changements ?</span>
         </q-card-section>
-
         <q-card-actions align="right">
           <q-btn :size="largeBtnSize" class="dialogText" flat label="Non, je le garde ouvert" color="primary" v-close-popup
             @click="perdreModif = false;resolveFichier(false)"/>
@@ -223,7 +224,6 @@
           <q-avatar icon="block" color="negative" text-color="white"/>
           <span class="q-ml-sm dialogText">Voulez-vous vraiment détruire le modèle [{{ fichier ? fichier.nom : '?' }}] ?</span>
         </q-card-section>
-
         <q-card-actions align="right">
           <q-btn :size="largeBtnSize" class="dialogText" flat label="Non, je le garde" color="primary" v-close-popup
             @click="detruiremodele = false"/>
@@ -240,7 +240,6 @@
           <span v-if="fichier && fichier.nom ? true : false" class="q-ml-sm dialogText">Voulez-vous vraiment envoyer ce fichier [{{ fichier.nom }}] aux balances ?</span>
           <span v-else class="q-ml-sm dialogText">Voulez-vous vraiment envoyer ce fichier aux balances ?</span>
         </q-card-section>
-
         <q-card-actions align="right">
           <q-btn :size="largeBtnSize" class="dialogText" flat label="Non, je ne l'envoie pas" color="primary" v-close-popup
             @click="envoyerfichier = false"/>
@@ -280,7 +279,8 @@ const optionsFiltre = [
   'Créés',
   'Modifiés',
   'Supprimés',
-  'Inchangés'
+  'Inchangés',
+  'Doublons de code article'
 ]
 
 export default {
@@ -292,16 +292,20 @@ export default {
     global.appVue = this
     this.fichier = new Fichier()
     try {
+      this.chargement = true
       this.articles = await this.fichier.lire()
       this.selArticles = []
       for (let i = 0, a = null; (a = this.articles[i]); i++) { this.selArticles.push(a) }
+      this.chargement = false
     } catch (e) {
+      this.chargement = false
       this.erreur('Le fichier des articles [articles.csv] est corrompu ou inaccessible.', e.message)
     }
   },
 
   data () {
     return {
+      chargement: false,
       fichier: null,
       modifie: false,
       lstArch: [],
@@ -367,10 +371,10 @@ export default {
       let c = this.itri
       // optionsTri: ['Numéro de ligne', 'Code de l\'article', 'Nom (alphabétique)', 'Code barre', 'Code court à 2 lettres']
       switch (c) {
-        case 0 : { this.selArticles.sort((a, b) => { return a.n > b.n ? 1 : (a.n < b.n ? -1 : 0) }); return }
-        case 1 : { this.selArticles.sort((a, b) => { return a.id > b.id ? 1 : (a.id < b.id ? -1 : 0) }); return }
-        case 2 : { this.selArticles.sort((a, b) => { return a.nom > b.nom ? 1 : (a.nom < b.nom ? -1 : 0) }); return }
-        case 3 : { this.selArticles.sort((a, b) => { return a['code-barre'] > b['code-barre'] ? 1 : (a['code-barre'] < b['code-barre'] ? -1 : 0) }); return }
+        case 0 : { this.selArticles.sort((a, b) => { return a.n > b.n ? 1 : (a.n < b.n ? -1 : 0) }); break }
+        case 1 : { this.selArticles.sort((a, b) => { return a.id > b.id ? 1 : (a.id < b.id ? -1 : 0) }); break }
+        case 2 : { this.selArticles.sort((a, b) => { return a.nom > b.nom ? 1 : (a.nom < b.nom ? -1 : 0) }); break }
+        case 3 : { this.selArticles.sort((a, b) => { return a['code-barre'] > b['code-barre'] ? 1 : (a['code-barre'] < b['code-barre'] ? -1 : 0) }); break }
         case 4 : { this.selArticles.sort((a, b) => { return a.codeCourt > b.codeCourt ? 1 : (a.codeCourt < b.codeCourt ? -1 : 0) }) }
       }
     },
@@ -396,6 +400,7 @@ export default {
       16 'Modifiés',
       17 'Supprimés'
       18 'Inchangés'
+      19 : 'Doublons de code article'
       */
       let c = this.ifiltre
       let n = parseInt(this.argFiltre)
@@ -404,25 +409,26 @@ export default {
       let P = removeDiacritics(p.toUpperCase())
       let s = this.articles
       switch (c) {
-        case 0 : { this.selArticles = s.filter(a => true); return }
-        case 1 : { this.selArticles = s.filter(a => a.erreurs.length !== 0); return }
-        case 2 : { this.selArticles = s.filter(a => a.bio); return }
-        case 3 : { this.selArticles = s.filter(a => !a.bio); return }
-        case 4 : { this.selArticles = s.filter(a => a.poidsPiece >= 0); return }
-        case 5 : { this.selArticles = s.filter(a => a.poidsPiece > 0); return }
-        case 6 : { this.selArticles = s.filter(a => a.poidsPiece === 0); return }
-        case 7 : { this.selArticles = s.filter(a => a.poidsPiece === -1); return }
-        case 8 : { this.selArticles = s.filter(a => !a.image); return }
-        case 9 : { this.selArticles = s.filter(a => a.imagel > n); return }
-        case 10 : { this.selArticles = s.filter(a => a.id.startsWith(p)); return }
-        case 11 : { this.selArticles = s.filter(a => a['code-barre'].startsWith(p)); return }
-        case 12 : { this.selArticles = s.filter(a => a.codeCourt.toUpperCase.startsWith(p.toUpperCase)); return }
-        case 13 : { this.selArticles = s.filter(a => a.nomN.indexOf(P) !== -1); return }
-        case 14 : { this.selArticles = s.filter(a => a.nomN.startsWith(P)); return }
-        case 15 : { this.selArticles = s.filter(a => a.status === 1 || a.status === 4); return }
-        case 16 : { this.selArticles = s.filter(a => a.status === 2); return }
-        case 17 : { this.selArticles = s.filter(a => a.status >= 3); return }
-        case 18 : { this.selArticles = s.filter(a => a.status === 0) }
+        case 0 : { this.selArticles = s.filter(a => true); break }
+        case 1 : { this.selArticles = s.filter(a => a.erreurs.length !== 0); break }
+        case 2 : { this.selArticles = s.filter(a => a.bio); break }
+        case 3 : { this.selArticles = s.filter(a => !a.bio); break }
+        case 4 : { this.selArticles = s.filter(a => a.poidsPiece >= 0); break }
+        case 5 : { this.selArticles = s.filter(a => a.poidsPiece > 0); break }
+        case 6 : { this.selArticles = s.filter(a => a.poidsPiece === 0); break }
+        case 7 : { this.selArticles = s.filter(a => a.poidsPiece === -1); break }
+        case 8 : { this.selArticles = s.filter(a => !a.image); break }
+        case 9 : { this.selArticles = s.filter(a => a.imagel > n); break }
+        case 10 : { this.selArticles = s.filter(a => a.id.startsWith(p)); break }
+        case 11 : { this.selArticles = s.filter(a => a['code-barre'].startsWith(p)); break }
+        case 12 : { this.selArticles = s.filter(a => a.codeCourt.toUpperCase.startsWith(p.toUpperCase)); break }
+        case 13 : { this.selArticles = s.filter(a => a.nomN.indexOf(P) !== -1); break }
+        case 14 : { this.selArticles = s.filter(a => a.nomN.startsWith(P)); break }
+        case 15 : { this.selArticles = s.filter(a => a.status === 1 || a.status === 4); break }
+        case 16 : { this.selArticles = s.filter(a => a.status === 2); break }
+        case 17 : { this.selArticles = s.filter(a => a.status >= 3); break }
+        case 18 : { this.selArticles = s.filter(a => a.status === 0); break }
+        case 19 : { this.selArticles = s.filter(a => this.fichier.mapId[a.id] > 1) }
       }
       this.trier()
     },
@@ -479,6 +485,7 @@ export default {
     },
 
     async ouvrirFichier (f, arch) {
+      this.chargement = true
       if (await this.verifOuverture()) {
         this.panneauDroit = false
         this.articles = []
@@ -487,8 +494,10 @@ export default {
         try {
           this.articles = await this.fichier.lire()
           this.selArticles = this.articles
+          this.chargement = false
         } catch (e) {
           this.fichier = null
+          this.chargement = false
           this.erreur('Le fichier [' + f + '] est corrompu ou inaccessible.', e.message)
         }
       }

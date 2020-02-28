@@ -20,9 +20,8 @@ const createCsvStringifier = require('csv-writer').createObjectCsvStringifier
 const Jimp = require('jimp')
 
 export const colonnes = ['id', 'nom', 'code-barre', 'prix', 'categorie', 'unite', 'image']
-export const defVal = ['0', '', '0000000000000', '0.0', 'A', 'Unite(s)', '']
-export const ligne1 = '0;"";0000000000000;0.0;A;Unite(s);""\n'
-
+export const defVal = ['99999', '', '0000000000000', '0.0', 'A', 'Unite(s)', '']
+export const ligne1 = '99999;"";0000000000000;0.0;A;Unite(s);""\n'
 
 export const enteteCSV = []
 for (let i = 0, f = null; (f = colonnes[i]); i++) { enteteCSV.push('"' + f + (i === colonnes.length - 1 ? '"\n' : '";')) }
@@ -201,9 +200,9 @@ export class Fichier {
                     if (!this.nom) { ref.push(data) }
                     n++
                     data.n = n
-                    this.articlesI.push(clone(data))
                     data.status = 0
                     await decore(data)
+                    this.articlesI.push(clone(data))
                     this.articles.push(data)
                 })
                 .on('end', () => {
@@ -222,17 +221,27 @@ export class Fichier {
 
     stats () {
         this.nbcrees = 0
+        this.mapId = {}
         this.nbmodifies = 0
         this.nbsupprimes = 0
         this.nberreurs = 0
+        this.doublons = []
         for (let i = 0; i < this.articles.length; i++) {
             let a = this.articles[i]
             if (a.erreurs.length) { this.nberreurs++ }
             if (a.status === 1 || a.status === 4) { this.nbcrees++ }
             if (a.status === 2) { this.nbmodifiees++ }
             if (a.status === 3 || a.status === 4) { this.nbsupprimes++ }
+            let e = this.mapId[a.id]
+            if (!e) {
+                this.mapId[a.id] = 1
+            } else {
+                if (e === 1) {
+                    this.doublons.push(a.id)
+                }
+                this.mapId[a.id] = e + 1
+            }
         }
-        return this.nbcrees + this.nbmodifies + this.nbsupprimes
     }
 }
 
@@ -245,7 +254,10 @@ export async function decore (data) {
     }
 }
 
-export async function maj (data, col, val) {
+/*
+Option "simple" : si true, le controle est allégé, pour une image celle-ci n'est pas générée depuis sa base64
+*/
+export async function maj (data, col, val, simple) {
     switch (col) {
         case 'id' : {
             try {
@@ -323,16 +335,17 @@ export async function maj (data, col, val) {
         }
         case 'image' : {
             if (val && !estBase64(val)) {
-                return 'image mal encodée'
+                return 'image mal encodée (pas en base64)'
             }
             data.image = val || ''
-            let buffer = Buffer.from(val, 'base64')
-            try {
-                data.img = await Jimp.read(buffer)
-                data.imagel = data.img.bitmap.width
-                data.imageh = data.img.bitmap.height
-            } catch (err) {
-                return 'image non reconnue, inaffichable'
+            if (!simple) {
+                try {
+                    let img = await Jimp.read(Buffer.from(val, 'base64'))
+                    data.imagel = img.bitmap.width
+                    data.imageh = img.bitmap.height
+                } catch (err) {
+                    return 'image non affichable : ' + err.message
+                }
             }
         }
     }

@@ -5,7 +5,7 @@
         <q-avatar color="negative" text-color="white">{{ article.erreurs.length }}</q-avatar>{{ article.erreurs.length == 1 ? 'erreur' : 'erreurs'}}
     </q-chip>
   </div>
-  <div class="carteArticle shadow-5 row no-wrap justify-start items-center">
+  <div class="carteArticle shadow-5 row no-wrap justify-start items-center q-gutter-xs">
     <div class="col-auto">
       <img v-if="article.image.length !== 0" class="image" :src="'data:image/jpeg;base64,' + article.image">
       <div v-else class="image  bg-grey-4"></div>

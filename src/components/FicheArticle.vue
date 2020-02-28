@@ -67,16 +67,33 @@
         </div>
 
         <div class="q-gutter-sm shadow-5 input1 column q-gutter-sm items-center">
-          <img class="col-auto image2" :src="'data:image/jpeg;base64,' + data.image"/>
-          <div class="col-auto">{{ data.imagel + 'x' + data.imageh }}</div>
-          <q-file class="col-auto" v-model="imageLocale" label="Choisir un fichier jpeg" style="width:20rem;"/>
-          <q-btn class="col-auto" size="md" color="deep-orange" label="contain" @click="resize('contain')"/>
-          <q-btn class="col-auto" size="md" color="deep-orange" label="cover" @click="resize('cover')"/>
+          <div v-if="data.image ? true : false">
+            <img class="col-auto image2" :src="'data:image/jpeg;base64,' + data.image"/>
+            <div class="col-auto">{{ data.imagel + 'x' + data.imageh }}</div>
+          </div>
+          <div v-else>Pas d'image</div>
+          <q-btn class="col-auto" size="md" color="deep-orange" label="Autre image depuis un fichier"
+            @click="nouvelleImage = true"/>
         </div>
-
       </div>
     </q-page-container>
   </q-layout>
+  </q-dialog>
+
+  <q-dialog v-model="nouvelleImage" class="bg-white" persistent>
+    <q-card>
+      <q-card-section class="row items-center">
+          <q-file class="col-auto" v-model="imageLocale" label="Choisir un fichier jpeg" style="width:20rem;"/>
+      </q-card-section>
+      <q-card-actions class="column items-end no-wrap">
+          <q-btn class="col-auto" v-close-popup flat size="md" color="primary" label="Couvrante : coupée en haut/bas ou à gauche/droite"
+            :disable="img == null" @click="resize('cover')"/>
+          <q-btn class="col-auto" v-close-popup flat size="md" color="primary" label="Centrée : marge noire en haut/bas ou à gauche/droite"
+            :disable="img == null" @click="resize('content')"/>
+          <q-btn class="col-auto" flat label="Je renonce" color="negative" v-close-popup
+            @click="nouvelleImage = false"/>
+      </q-card-actions>
+    </q-card>
   </q-dialog>
 
   <q-dialog v-model="perdreModif" persistent>
@@ -85,7 +102,6 @@
         <q-avatar icon="block" color="negative" text-color="white"/>
         <span class="q-ml-sm dialogText">Cet article a été modifié. Voulez-vous vraiment perdre les changements ?</span>
       </q-card-section>
-
       <q-card-actions align="right">
         <q-btn flat label="Non, je les valide" color="primary" v-close-popup
           @click="perdreModif = false;resolve(false)"/>
@@ -101,7 +117,6 @@
         <q-avatar icon="block" color="negative" text-color="white"/>
         <span class="q-ml-sm dialogText">Cet article comporte au moins une erreur. Voulez-vous vraiment le valider et fermer ?</span>
       </q-card-section>
-
       <q-card-actions align="right">
         <q-btn flat size="md" label="Non, je le laisse ouvert pour corriger" color="primary" v-close-popup
           @click="fermerqm = false;resolve(false)"/>
@@ -152,23 +167,26 @@ export default {
       dataI: {},
       perdreModif: false,
       n: 0,
-      imageLocale: null
+      imageLocale: null,
+      nouvelleImage: false,
+      img: null
     }
   },
 
   computed: {
     estmodifie () {
-      return this.data.nom !== this.dataAV.nom ||
+      let b = this.data.nom !== this.dataAV.nom ||
         this.data.id !== this.dataAV.id ||
         this.data['code-barre'] !== this.dataAV['code-barre'] ||
         this.data.prix !== this.dataAV.prix ||
         this.data.categorie !== this.dataAV.categorie ||
         this.data.unite !== this.dataAV.unite ||
         this.data.image !== this.dataAV.image
+      return b
     },
 
     pasinitial () {
-      return this.dataI && (
+      let b = this.dataI && (
         this.data.nom !== this.dataI.nom ||
         this.data.id !== this.dataI.id ||
         this.data['code-barre'] !== this.dataI['code-barre'] ||
@@ -177,12 +195,14 @@ export default {
         this.data.unite !== this.dataI.unite ||
         this.data.image !== this.dataI.image
       )
+      return b
     }
   },
 
   watch: {
     imageLocale(file) {
       if (file) {
+        this.imageLocale = null
         this.chargeImage(file.path)
       }
     }
@@ -214,9 +234,9 @@ export default {
       if (!this.data[c]) { this.data[c] = '' }
       if (c === 'prixS') {
         if (!this.data.prixS) { this.data.prixS = '0' }
-        err = await maj(this.data, 'prix', this.data.prixS)
+        err = await maj(this.data, 'prix', this.data.prixS, true)
       } else {
-        err = await maj(this.data, c, this.data[c])
+        err = await maj(this.data, c, this.data[c], true)
       }
       if (err) { this.data.erreurs.push(err) }
       this.setStatus()
@@ -234,33 +254,36 @@ export default {
    },
 
     resize(option) {
+      if (!this.img) { return }
       this.filtreErr('im')
       let x = 'data:image/jpeg;base64,'
       try {
-        this.data.img = option === 'cover' ? this.data.img.cover(128, 128) : this.data.img.contain(128, 128)
-        this.data.imagel = this.data.img.bitmap.width
-        this.data.imageh = this.data.img.bitmap.height
-        this.data.img.getBase64Async('image/jpeg')
+        this.img = option === 'cover' ? this.img.cover(128, 128) : this.img.contain(128, 128)
+        this.img.getBase64Async('image/jpeg')
         .then(b64 => {
           this.data.image = b64.substring(x.length)
+          this.data.imagel = this.img.bitmap.width
+          this.data.imageh = this.img.bitmap.height
+          this.img = null
         }).catch(err => {
-          this.data.erreurs.push('image non reconnue, inaffichable (1) -' + err.message)
+          this.img = null
+          this.data.erreurs.push('image non affichable (1) : ' + err.message)
         })
       } catch (err) {
-        this.data.erreurs.push('image non reconnue, inaffichable (2) -' + err.message)
+        this.img = null
+        this.data.erreurs.push('image non affichable (2) : ' + err.message)
       }
     },
 
     async chargeImage(path) {
+      this.img = null
       this.filtreErr('im')
       try {
-        this.data.image = fs.readFileSync(path, { encoding: 'base64' })
-        let buffer = Buffer.from(this.data.image, 'base64')
-        this.data.img = await Jimp.read(buffer)
-        this.data.imagel = this.data.img.bitmap.width
-        this.data.imageh = this.data.img.bitmap.height
+        let b64 = fs.readFileSync(path, { encoding: 'base64' })
+        let buffer = Buffer.from(b64, 'base64')
+        this.img = await Jimp.read(buffer)
       } catch (err) {
-        this.data.erreurs.push('image non reconnue, inaffichable -' + err.message)
+        this.data.erreurs.push('image non affichable : ' + err.message)
       }
     },
 

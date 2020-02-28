@@ -17,6 +17,7 @@
     "csv-parser": "^2.3.2",
     "csv-writer": "^1.6.0",
     "electron-rebuild": "^1.0.0",
+    "jimp": "^0.9.3",
     "quasar": "^1.8.5"
   },
   "devDependencies": {

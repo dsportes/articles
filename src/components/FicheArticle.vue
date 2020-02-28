@@ -66,6 +66,14 @@
           <q-radio v-model="data.unite" val="Unité(s)" label="à l'unité" />
         </div>
 
+        <div class="q-gutter-sm shadow-5 input1 column q-gutter-sm items-center">
+          <img class="col-auto image2" :src="'data:image/jpeg;base64,' + data.image"/>
+          <div class="col-auto">{{ data.imagel + 'x' + data.imageh }}</div>
+          <q-file class="col-auto" v-model="imageLocale" label="Choisir un fichier jpeg" style="width:20rem;"/>
+          <q-btn class="col-auto" size="md" color="deep-orange" label="contain" @click="resize('contain')"/>
+          <q-btn class="col-auto" size="md" color="deep-orange" label="cover" @click="resize('cover')"/>
+        </div>
+
       </div>
     </q-page-container>
   </q-layout>
@@ -107,13 +115,22 @@
 </template>
 
 <script>
+/*
+data.img.getBase64Async(mime); // Returns Promise
+Jimp.MIME_JPEG; // "image/jpeg"
+image.contain( w, h[, alignBits || mode, mode] );    // scale the image to the given width and height, some parts of the image may be letter boxed
+image.cover( w, h[, alignBits || mode, mode] );      // scale the image to the given width and height, some parts of the image may be clipped
+fs.readSyncFile('/etc/passwd', { encoding: 'base64' })
+*/
+
 import { clone, eq, colonnes, defVal, decore, maj } from '../app/fichier'
 import { global } from '../app/global'
 import { config } from '../app/config'
+const fs = require('fs')
+const Jimp = require('Jimp')
 
 const defValObj = {}
 for (let i = 0, c = null; (c = colonnes[i]); i++) { defValObj[c] = defVal[i] }
-decore(defValObj)
 
 export default {
   name: 'FicheArticle',
@@ -134,7 +151,8 @@ export default {
       dataAV: {},
       dataI: {},
       perdreModif: false,
-      n: 0
+      n: 0,
+      imageLocale: null
     }
   },
 
@@ -162,6 +180,14 @@ export default {
     }
   },
 
+  watch: {
+    imageLocale(file) {
+      if (file) {
+        this.chargeImage(file.path)
+      }
+    }
+  },
+
   methods: {
     filtreErr (c) {
       let x = []
@@ -182,21 +208,21 @@ export default {
       }
     },
 
-    verif (c) {
+    async verif (c) {
       let err
       this.filtreErr(c.substring(0, 2))
       if (!this.data[c]) { this.data[c] = '' }
       if (c === 'prixS') {
         if (!this.data.prixS) { this.data.prixS = '0' }
-        err = maj(this.data, 'prix', this.data.prixS)
+        err = await maj(this.data, 'prix', this.data.prixS)
       } else {
-        err = maj(this.data, c, this.data[c])
+        err = await maj(this.data, c, this.data[c])
       }
       if (err) { this.data.erreurs.push(err) }
       this.setStatus()
     },
 
-    ouvrir (idx, pos) {
+    async ouvrir (idx, pos) {
       this.fichier = global.appVue.fichier
       this.max = global.appVue.selArticles.length
       this.idx = idx
@@ -205,6 +231,37 @@ export default {
       this.dataAV = clone(this.data)
       this.dataI = this.idx < this.fichier.articlesI.length ? this.fichier.articlesI[this.idx] : null
       this.ficheArticle = true
+   },
+
+    resize(option) {
+      this.filtreErr('im')
+      let x = 'data:image/jpeg;base64,'
+      try {
+        this.data.img = option === 'cover' ? this.data.img.cover(128, 128) : this.data.img.contain(128, 128)
+        this.data.imagel = this.data.img.bitmap.width
+        this.data.imageh = this.data.img.bitmap.height
+        this.data.img.getBase64Async('image/jpeg')
+        .then(b64 => {
+          this.data.image = b64.substring(x.length)
+        }).catch(err => {
+          this.data.erreurs.push('image non reconnue, inaffichable (1) -' + err.message)
+        })
+      } catch (err) {
+        this.data.erreurs.push('image non reconnue, inaffichable (2) -' + err.message)
+      }
+    },
+
+    async chargeImage(path) {
+      this.filtreErr('im')
+      try {
+        this.data.image = fs.readFileSync(path, { encoding: 'base64' })
+        let buffer = Buffer.from(this.data.image, 'base64')
+        this.data.img = await Jimp.read(buffer)
+        this.data.imagel = this.data.img.bitmap.width
+        this.data.imageh = this.data.img.bitmap.height
+      } catch (err) {
+        this.data.erreurs.push('image non reconnue, inaffichable -' + err.message)
+      }
     },
 
     perdreValidation () {
@@ -260,9 +317,9 @@ export default {
       }
     },
 
-    valider () {
+    async valider () {
       this.setStatus()
-      decore(this.data)
+      await decore(this.data)
       this.fichier.stats()
       global.appVue.dataChange()
     },
@@ -321,6 +378,14 @@ export default {
 .input1
   margin: 0.5rem
   padding: 0rem 0.5rem 2rem 0.5rem
+
+.btnimg
+  max-width: 8rem !important
+
+.image2
+  border: 2px solid black
+  background-color: yellow
+  width: 128px
 
 </style>
 

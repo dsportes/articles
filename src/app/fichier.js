@@ -17,6 +17,7 @@ const csv = require('csv-parser')
 const fs = require('fs')
 const path = require('path')
 const createCsvStringifier = require('csv-writer').createObjectCsvStringifier
+const Jimp = require('jimp')
 
 export const colonnes = ['id', 'nom', 'code-barre', 'prix', 'categorie', 'unite', 'image']
 export const defVal = ['0', '', '0000000000000', '0.0', 'A', 'Unite(s)', '']
@@ -196,13 +197,13 @@ export class Fichier {
             })
             try {
                 stream.pipe(csv({ separator: ';' }))
-                .on('data', (data) => {
+                .on('data', async (data) => {
                     if (!this.nom) { ref.push(data) }
                     n++
                     data.n = n
                     this.articlesI.push(clone(data))
                     data.status = 0
-                    decore(data)
+                    await decore(data)
                     this.articles.push(data)
                 })
                 .on('end', () => {
@@ -235,16 +236,16 @@ export class Fichier {
     }
 }
 
-export function decore (data) {
+export async function decore (data) {
     data.erreurs = []
     let e
     for (let i = 0, f = null; (f = colonnes[i]); i++) {
-        e = maj(data, f, data[f])
+        e = await maj(data, f, data[f])
         if (e) { data.erreurs.push(e) }
     }
 }
 
-export function maj (data, col, val) {
+export async function maj (data, col, val) {
     switch (col) {
         case 'id' : {
             try {
@@ -325,9 +326,14 @@ export function maj (data, col, val) {
                 return 'image mal encodée'
             }
             data.image = val || ''
-            data.imagel = val ? 10 : 0
-            data.imageh = val ? 10 : 0
-            return ''
+            let buffer = Buffer.from(val, 'base64')
+            try {
+                data.img = await Jimp.read(buffer)
+                data.imagel = data.img.bitmap.width
+                data.imageh = data.img.bitmap.height
+            } catch (err) {
+                return 'image non reconnue, inaffichable'
+            }
         }
     }
 }

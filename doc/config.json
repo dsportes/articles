@@ -1,3 +1,15 @@
 {
-    "categories": ["F", "L", "V", "A"]
+    "balance": "/dev/ttyUSB0",
+    "articles": "/home/daniel/balance/articles.csv",
+    "imprimante": "WS408-SZPL",
+    "marge": 100,
+    "categories": ["F", "L", "V", "A"],
+    "url": "http://vps765607.ovh.net",
+    "port": 8069,
+    "database": "odoo9",
+    "username": "daniel@sportes.fr",
+    "password": "stopogm_2019",
+    "minCB": "04900000000000",
+    "maxCB": "04999999999999",
+    "map": {"id":"id", "name_template":"nom", "barcode":"code-barre", "list_price":"prix", "rack_location":"categorie", "to_weight":"unite", "other_information":"image"} 
 }

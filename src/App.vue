@@ -52,7 +52,7 @@
             <q-item-section avatar><q-icon class="menuButton" :name="'today'"/></q-item-section>
             <q-item-section class="menuText primary">En service sur les balances</q-item-section>
           </q-item>
-         <q-item clickable class="bg-grey-1" v-ripple @click="ouvrirODOO()">
+         <q-item clickable class="bg-grey-1" v-ripple @click="panneauDroit = false;ouvrirODOO()">
             <q-item-section avatar><q-icon class="menuButton" :name="'cloud_download'"/></q-item-section>
             <q-item-section class="menuText">Importation depuis ODOO</q-item-section>
           </q-item>
@@ -255,7 +255,7 @@
 <script>
 import { global, b64u, removeDiacritics } from './app/global'
 import { config } from './app/config'
-import { testOdoo } from './app/odoo'
+import { getArticles } from './app/odoo'
 import { Fichier, listeArchMod, copieFichier, colonnes, defVal, decore } from './app/fichier'
 import CarteArticle from './components/CarteArticle.vue'
 import FicheArticle from './components/FicheArticle.vue'
@@ -484,7 +484,7 @@ export default {
       })
     },
 
-    async ouvrirFichier (f, arch) {
+    async ouvrirFichier (f, arch, source) {
       this.chargement = true
       if (await this.verifOuverture()) {
         this.panneauDroit = false
@@ -492,7 +492,7 @@ export default {
         this.selArticles = []
         this.fichier = new Fichier(f, arch)
         try {
-          this.articles = await this.fichier.lire()
+          this.articles = await this.fichier.lire(source)
           this.filtrer()
           this.chargement = false
         } catch (e) {
@@ -532,8 +532,14 @@ export default {
       }
     },
 
-    ouvrirODOO () {
-      testOdoo()
+    async ouvrirODOO () {
+      try {
+        this.chargement = true
+        const source = await getArticles()
+        await this.ouvrirFichier('$S', false, source)
+      } catch (err) {
+        this.erreur('L\'importation des articles depuis ODOO a échoué.\n', err.message)
+      }
       // this.information('Cette fonctionnalité est en cours de développement')
     },
 

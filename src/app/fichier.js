@@ -164,13 +164,25 @@ export class Fichier {
     }
 
     /*
-    Si le fichier a pour nom $S l'argument source est le string obtenu par import des données du serveur central (ODOO).
+    Si le fichier a pour nom $S l'argument source est l'array des articles (objets) importée des données du serveur central (ODOO).
     Si le fichier est $N,
         a) soit la source est constituée de la seule entête CSV (elle n'est pas donnée en argument).
         b) soit c'est un fichier externe dont source donne le path
     Sinon le contenu est lu depuis le fichier dont le path a été défini au constructor (nom arch)
     */
     async lire (source) {
+        if (this.nom === '$S') {
+            this.articles = source
+            for (let i = 0, data = null; (data = this.articles[i]); i++) {
+                data.n = i
+                data.status = 0
+                this.articlesI.push(clone(data))
+                await decore(data)
+            }
+            this.stats()
+            return this.articles
+        }
+
         return new Promise((resolve, reject) => {
             let stream
             if (this.nom && this.nom.startsWith('$')) {
@@ -196,17 +208,19 @@ export class Fichier {
             })
             try {
                 stream.pipe(csv({ separator: ';' }))
-                .on('data', async (data) => {
+                .on('data', (data) => {
                     if (!this.nom) { ref.push(data) }
                     n++
                     data.n = n
                     data.status = 0
-                    await decore(data)
                     this.articlesI.push(clone(data))
                     this.articles.push(data)
                 })
-                .on('end', () => {
+                .on('end', async () => {
                     reference = ref
+                    for (let i = 0, data = null; (data = this.articles[i]); i++) {
+                        await decore(data)
+                    }
                     this.stats()
                     resolve(this.articles)
                 })

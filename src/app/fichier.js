@@ -321,7 +321,7 @@ export async function maj (data, col, val, simple) {
         case 'code-barre' : {
             let x = editEAN(val)
             if (!x) {
-                return 'code barre non numérique ou pas de longueur 12'
+                return 'code barre non numérique ou pas de longueur 13'
             }
             data['code-barre'] = x
             return ''

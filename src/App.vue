@@ -255,6 +255,7 @@
 <script>
 import { global, b64u, removeDiacritics } from './app/global'
 import { config } from './app/config'
+import { testOdoo } from './app/odoo'
 import { Fichier, listeArchMod, copieFichier, colonnes, defVal, decore } from './app/fichier'
 import CarteArticle from './components/CarteArticle.vue'
 import FicheArticle from './components/FicheArticle.vue'
@@ -293,8 +294,7 @@ export default {
     try {
       this.chargement = true
       this.articles = await this.fichier.lire()
-      this.selArticles = []
-      for (let i = 0, a = null; (a = this.articles[i]); i++) { this.selArticles.push(a) }
+      this.filtrer()
       this.chargement = false
     } catch (e) {
       this.chargement = false
@@ -335,7 +335,7 @@ export default {
       itri: 0,
       optionsTri: ['Numéro de ligne', 'Code de l\'article', 'Nom (alphabétique)', 'Code barre', 'Code court à 2 lettres'],
       filtre: 'Tous',
-      ifilre: 0,
+      ifiltre: 0,
       optionsFiltre: optionsFiltre,
       argFiltre: ''
     }
@@ -493,7 +493,7 @@ export default {
         this.fichier = new Fichier(f, arch)
         try {
           this.articles = await this.fichier.lire()
-          this.selArticles = this.articles
+          this.filtrer()
           this.chargement = false
         } catch (e) {
           this.fichier = null
@@ -511,7 +511,7 @@ export default {
         this.fichier = new Fichier('$N')
         try {
           this.articles = await this.fichier.lire()
-          this.selArticles = this.articles
+          this.filtrer()
         } catch (e) {
           this.fichier = null
           this.erreur('Le nouveau fichier est corrompu ou inaccessible.', e.message)
@@ -533,7 +533,8 @@ export default {
     },
 
     ouvrirODOO () {
-      this.information('Cette fonctionnalité est en cours de développement')
+      testOdoo()
+      // this.information('Cette fonctionnalité est en cours de développement')
     },
 
     async enregModele () {

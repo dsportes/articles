@@ -142,7 +142,7 @@ import { clone, eq, colonnes, defVal, decore, maj } from '../app/fichier'
 import { global } from '../app/global'
 import { config } from '../app/config'
 const fs = require('fs')
-const Jimp = require('Jimp')
+const Jimp = require('jimp')
 
 const defValObj = {}
 for (let i = 0, c = null; (c = colonnes[i]); i++) { defValObj[c] = defVal[i] }

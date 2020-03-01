@@ -64,7 +64,7 @@ export function formatPoids (p) {
   EAN13 ---> 9 780201 134476
   */
   export function editEAN(ean, p) {
-    if (typeof ean !== 'string' || ean.length !== 12) { return null }
+    if (typeof ean !== 'string' || ean.length !== 13) { return null }
     let s = ean
     if (typeof p !== 'undefined') {
       if (typeof p !== 'number' || p < 0 || p > 99999) { return null }
@@ -72,13 +72,12 @@ export function formatPoids (p) {
       s = ean.substrin(0, 0) + ('0000' + x).substring(x.length) + '0'
     }
     let c = cleEAN(s)
-    return !c ? null : s.substring(0, 11) + c
+    return !c ? null : s.substring(0, 12) + c
   }
 
   export function cleEAN (s) {
     let v = new Array(13)
-    v[0] = 0
-    for (let i = 1; i < 13; i++) {
+    for (let i = 0; i < 13; i++) {
       let n = s.charCodeAt(i - 1) - 48
       if (n < 0 || n > 9) { return null }
       v[i] = n

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Articles
+Type=Application
+Exec=/home/daniel/git/articles/dist/electron/articles-linux-x64/articles
+Terminal=false
+Icon=/home/daniel/git/articles/tomate.png
+NoDisplay=false
+Categories=Development;IDE;
+Name[fr_FR]=Articles.desktop

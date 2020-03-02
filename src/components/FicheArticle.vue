@@ -42,7 +42,7 @@
           </template>
         </q-input>
 
-        <q-input class="shadow-5 input1" v-model="data['code-barre']" clearable label="Code barre à 12 chiffres (le 0 en tête est omis)" @input="verif('code-barre')" :rules="[ val => val.length == 12 || '12 chiffres requis']">
+        <q-input class="shadow-5 input1" v-model="data['code-barre']" clearable label="Code barre à 13 chiffres)" @input="verif('code-barre')" :rules="[ val => val.length == 13 || '13 chiffres requis']">
           <template v-slot:append>
             <q-btn round size="xs" color="deep-orange" icon="undo" :disable="data['code-barre'] === dataAV['code-barre']" @click="undo('code-barre')"/>
             <q-btn round size="xs" color="deep-orange" icon="replay" :disable="!dataI || data['code-barre'] === dataI['code-barre']" @click="reinit('code-barre')"/>
@@ -251,7 +251,16 @@ export default {
       this.dataAV = clone(this.data)
       this.dataI = this.idx < this.fichier.articlesI.length ? this.fichier.articlesI[this.idx] : null
       this.ficheArticle = true
-   },
+    },
+
+    fermer () {
+      this.idx = 0
+      this.pos = 0
+      this.data = {}
+      this.dataAV = {}
+      this.dataI = {}
+      this.ficheArticle = false
+    },
 
     resize(option) {
       if (!this.img) { return }
@@ -370,11 +379,8 @@ export default {
       if (this.data.erreurs.length !== 0 && !(await this.fermerQuandMeme())) { return }
       this.valider()
       this.ficheArticle = false
-    },
-
-    fermer () {
-      this.ficheArticle = false
     }
+
   }
 }
 </script>
@@ -407,7 +413,7 @@ export default {
 
 .image2
   border: 2px solid black
-  background-color: yellow
+  background: repeating-linear-gradient(to right, #f6ba52, #f6ba52 10px, #ffd180 10px, #ffd180 20px)
   width: 128px
 
 </style>

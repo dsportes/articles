@@ -4,6 +4,7 @@
     "imprimante": "WS408-SZPL",
     "marge": 100,
     "categories": ["F", "L", "V", "A"],
+    "host": "vps765607.ovh.net",
     "url": "http://vps765607.ovh.net",
     "port": 8069,
     "database": "odoo9",

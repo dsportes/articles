@@ -1,17 +1,21 @@
+// https://github.com/saidimu/odoo
+
 import { remote } from 'electron'
 
-const Odoo = remote.require('odoo-xmlrpc')
+const Odoo = remote.require('odoo')
 import { config } from './config'
 
 const minCB = config.minCB
 const maxCB = config.maxCB
-const map = config.map || { 'id': 'id', 'name_template': 'nom', 'barcode': 'code-barre', 'list_price': 'prix', 'rack_location': 'categorie', 'to_weight': 'unite', 'other_information': 'image' }
+const map = config.map || { 'id': 'id', 'image': 'image', 'name_template': 'nom', 'barcode': 'code-barre', 'list_price': 'prix', 'rack_location': 'categorie', 'to_weight': 'unite' }
 
 const fields = []
 for (let f in map) { fields.push(f) }
 
+const domain = [['barcode', '>=', minCB], ['barcode', '<=', maxCB]]
+
 const odoo = new Odoo({
-    url: config.url,
+    host: config.host,
     port: config.port,
     database: config.database,
     username: config.username,
@@ -24,36 +28,26 @@ export function getArticles () {
             if (err) {
                 reject(err)
             } else {
-                const filtre = [['barcode', '>=', minCB], ['barcode', '<=', maxCB]]
-                const inParams = []
-                inParams.push(filtre)
-                // inParams.push(0); // offset
-                // inParams.push(5); // limit
-                const params = []
-                params.push(inParams)
-                odoo.execute_kw('product.product', 'search', params, (err, value) => {
+                const params = {
+                    ids: [],
+                    domain: domain,
+                    fields: fields,
+                    order: '',
+                    limit: 9999,
+                    offset: 0
+                }
+                odoo.search_read('product.product', params, (err, products) => {
                     if (err) {
                         reject(err)
                     } else {
-                        const inParams = []
-                        inParams.push(value) // ids
-                        inParams.push(fields) // fields
-                        const params = []
-                        params.push(inParams)
-                        odoo.execute_kw('product.product', 'read', params, (err2, value2) => {
-                            if (err2) {
-                                reject(err2)
-                            } else {
-                                const res = []
-                                for (let i = 0, r = null; (r = value2[i]); i++) {
-                                    const a = {}
-                                    for (let f in map) { a[map[f]] = '' + r[f] }
-                                    a.unite = a.unite === 'true' ? 'kg' : 'Unité(s)'
-                                    res.push(a)
-                                }
-                                resolve(res)
-                            }
-                        })
+                        const res = []
+                        for (let i = 0, r = null; (r = products[i]); i++) {
+                            const a = {}
+                            for (let f in map) { a[map[f]] = '' + r[f] }
+                            a.unite = a.unite === 'true' ? 'kg' : 'Unité(s)'
+                            res.push(a)
+                        }
+                        resolve(res)
                     }
                 })
             }

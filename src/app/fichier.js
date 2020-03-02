@@ -11,7 +11,7 @@ prixN : prix sous forme numérique
 */
 
 import { config } from './config'
-import { removeDiacritics, editEAN, formatPrix, dateHeure, estBase64 } from './global'
+import { removeDiacritics, editEAN, formatPrix, dateHeure } from './global'
 const { Readable } = require('stream')
 const csv = require('csv-parser')
 const fs = require('fs')
@@ -174,7 +174,7 @@ export class Fichier {
         if (this.nom === '$S') {
             this.articles = source
             for (let i = 0, data = null; (data = this.articles[i]); i++) {
-                data.n = i
+                data.n = i + 1
                 data.status = 0
                 this.articlesI.push(clone(data))
                 await decore(data)
@@ -335,7 +335,7 @@ export async function maj (data, col, val, simple) {
         case 'code-barre' : {
             let x = editEAN(val)
             if (!x) {
-                return 'code barre non numérique ou pas de longueur 13'
+                return 'code barre non numérique ou pas de longueur 13 ou de clé incorrecte'
             }
             data['code-barre'] = x
             return ''
@@ -348,13 +348,17 @@ export async function maj (data, col, val, simple) {
             return ''
         }
         case 'image' : {
-            if (val && !estBase64(val)) {
-                return 'image mal encodée (pas en base64)'
+           let buffer
+            try {
+                buffer = Buffer.from(val, 'base64')
+                if (!buffer) { return 'image mal encodée (pas en base64)' }
+            } catch (err) {
+            return 'image mal encodée (pas en base64)' + err.message
             }
             data.image = val || ''
             if (!simple) {
                 try {
-                    let img = await Jimp.read(Buffer.from(val, 'base64'))
+                    let img = await Jimp.read(buffer)
                     data.imagel = img.bitmap.width
                     data.imageh = img.bitmap.height
                 } catch (err) {

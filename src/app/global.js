@@ -3,16 +3,10 @@ export const global = {
 }
 
 const regb64u = RegExp(/^[a-zA-Z0-9-_]*$/)
-const regb64 = RegExp(/([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$/)
 
 export function b64u (s, min, max) {
   if (!s || s.length < min || s.length > max) { return false }
   return regb64u.test(s)
-}
-
-export function estBase64 (s) {
-  if (!s || typeof s !== 'string' || s.length < 3) { return false }
-  return regb64.test(s)
 }
 
 function e2(n) { return e2 === 0 ? '00' : (n < 10 ? '0' + n : '' + n) }
@@ -41,12 +35,11 @@ export function formatPoids (p) {
   }
 
   /*
-  Le premier paramètre est un code barre à 12 chiffres :
-  en fait le tout premier chiffre sur 13 vaut toujours 0 pour ces articles et est omis
+  Le premier paramètre est un code barre à 13 chiffres :
+  (en fait le tout premier chiffre sur 13 vaut toujours 0 pour ces articles).
   Si le second paramètre p (c'est un nombre) est défini, c'est un poids ou un nombre d'articles
-  qui va remplacer les 5 chiffres de droite
-  Dans tous les cas la clé est recalculée?
-  Retourne null en cas d'erreur (ean pas de 12 chiffres, p > 99999)
+  qui va remplacer les 5 chiffres de droite et calculer la clé.
+  Retourne null en cas d'erreur (ean pas de 13 chiffres, p > 99999)
 
   Calcul de la clé
   Les chiffres sont numérotés de droite à gauche;
@@ -66,19 +59,24 @@ export function formatPoids (p) {
   export function editEAN(ean, p) {
     if (typeof ean !== 'string' || ean.length !== 13) { return null }
     let s = ean
-    if (typeof p !== 'undefined') {
+    const ap = typeof p !== 'undefined'
+    if (ap) {
       if (typeof p !== 'number' || p < 0 || p > 99999) { return null }
       let x = '' + p
       s = ean.substrin(0, 0) + ('0000' + x).substring(x.length) + '0'
     }
     let c = cleEAN(s)
-    return !c ? null : s.substring(0, 12) + c
+    if (!ap) {
+      return c && c === s.substring(12) ? s : null
+    } else {
+      return !c ? null : s.substring(0, 12) + c
+    }
   }
 
   export function cleEAN (s) {
     let v = new Array(13)
     for (let i = 0; i < 13; i++) {
-      let n = s.charCodeAt(i - 1) - 48
+      let n = s.charCodeAt(i) - 48
       if (n < 0 || n > 9) { return null }
       v[i] = n
     }

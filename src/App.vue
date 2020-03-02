@@ -253,9 +253,9 @@
 </template>
 
 <script>
+import { getArticles } from './app/odoo'
 import { global, b64u, removeDiacritics } from './app/global'
 import { config } from './app/config'
-import { getArticles } from './app/odoo'
 import { Fichier, listeArchMod, copieFichier, colonnes, defVal, decore } from './app/fichier'
 import CarteArticle from './components/CarteArticle.vue'
 import FicheArticle from './components/FicheArticle.vue'

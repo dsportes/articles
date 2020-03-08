@@ -11,7 +11,7 @@ prixN : prix sous forme numérique
 */
 
 import { config } from './config'
-import { removeDiacritics, editEAN, formatPrix, dateHeure } from './global'
+import { removeDiacritics, editEAN, formatPrix, dateHeure, centimes, nChiffres } from './global'
 const { Readable } = require('stream')
 const csv = require('csv-parser')
 const fs = require('fs')
@@ -154,10 +154,12 @@ export class Fichier {
                 fs.writeFileSync(path.join(modelesPath, n + '.csv'), s, (err) => { reject(err) })
             }
             if (aEnvoyer) {
-                // le contenu diffère de celui en service : mettre en archives et dans aricles.csv
+                // le contenu diffère de celui en service : mettre en archives et dans aricles.csv. C'est la nouvelle référence
                 a = dateHeure()
                 fs.writeFileSync(articlesPath, s, (err) => { reject(err) })
                 fs.writeFileSync(path.join(archivesPath, a + '.csv'), s, (err) => { reject(err) })
+                reference = []
+                for (let i = 0, data = null; (data = this.articles[i]); i++) reference.push(clone(data))
             }
             resolve(a)
         })
@@ -209,7 +211,7 @@ export class Fichier {
             try {
                 stream.pipe(csv({ separator: ';' }))
                 .on('data', (data) => {
-                    if (!this.nom) { ref.push(data) }
+                    if (!this.nom) ref.push(clone(data))
                     n++
                     data.n = n
                     data.status = 0
@@ -217,7 +219,7 @@ export class Fichier {
                     this.articles.push(data)
                 })
                 .on('end', async () => {
-                    reference = ref
+                    if (!this.nom) reference = ref
                     for (let i = 0, data = null; (data = this.articles[i]); i++) {
                         await decore(data)
                     }
@@ -244,7 +246,7 @@ export class Fichier {
             let a = this.articles[i]
             if (a.erreurs.length) { this.nberreurs++ }
             if (a.status === 1 || a.status === 4) { this.nbcrees++ }
-            if (a.status === 2) { this.nbmodifiees++ }
+            if (a.status === 2) { this.nbmodifies++ }
             if (a.status === 3 || a.status === 4) { this.nbsupprimes++ }
             let e = this.mapId[a.id]
             if (!e) {
@@ -275,8 +277,8 @@ export async function maj (data, col, val, simple) {
     switch (col) {
         case 'id' : {
             try {
-                const n = parseInt(val, 10)
-                if (n < 1 || n > 999999) { return 'id non numérique compris entre 1 et 999999' }
+                const n = nChiffres(val, 6)
+                if (n === false) { return 'id non numérique compris entre 1 et 999999' }
                 data.id = val
                 // 'A' = 65
                 const l1 = String.fromCharCode((n % 26) + 65)
@@ -297,19 +299,15 @@ export async function maj (data, col, val, simple) {
             return ''
         }
         case 'prix' : {
-            try {
-                let e
-                e = val.indexOf('.') === -1 ? parseInt(val) : Math.round(parseFloat(val) * 100)
-                if (isNaN(e) || (e <= 0 || e > 999999)) {
-                    return 'prix absent ou < 0 ou > 999999 ou non numérique'
-                } else {
-                    data.prixN = e
-                    data.prix = formatPrix(e)
-                    data.prixS = '' + e
-                    return ''
-                }
-            } catch (err) {
-                return 'prix absent ou < 0 ou > 999999 ou non numérique'
+            let e = centimes(val)
+            if (e === false) return 'prix absent ou n\'est ni un décimal (avec au plus 2 chiffres après le point), ni un entier'
+            if (e === 0 || e > 999999) {
+                return 'prix en centimes nul ou supérieur à 999999'
+            } else {
+                data.prixN = e
+                data.prix = formatPrix(e)
+                data.prixS = '' + e
+                return ''
             }
         }
         case 'unite' : {
@@ -333,11 +331,9 @@ export async function maj (data, col, val, simple) {
             return ''
         }
         case 'code-barre' : {
-            let x = editEAN(val)
-            if (!x) {
-                return 'code barre non numérique ou pas de longueur 13 ou de clé incorrecte'
-            }
-            data['code-barre'] = x
+            let [err, cb] = editEAN(val)
+            if (err) return err
+            data['code-barre'] = cb
             return ''
         }
         case 'categorie' : {

@@ -23,33 +23,34 @@
       </div>
       </div>
       <q-scroll-area class="erreurs">
-        <div v-for="e in data.erreurs" :key="e" class="q-py-sm">{{ e }}</div>
+        <div v-for="e in erreurs" :key="e" class="q-py-sm">{{ e }}</div>
       </q-scroll-area>
     </q-header>
     <q-page-container>
       <div class="column justify-start">
-        <q-input class="shadow-5 input1" v-model="data.id" clearable label="Code article de 1 à 6 chiffres" @input="verif('id')" :rules="[ val => val.length > 0 && val.length <= 6 || '1 à 6 chiffres requis']">
+        <q-input class="shadow-5 input1" color="black" bottom-slots :error="erMap.id ? true : false" :error-message="erMap.id" v-model="data.id" clearable label="Code article de 1 à 6 chiffres" @input="verif('id')">
           <template v-slot:append>
             <q-btn round size="xs" color="deep-orange" icon="undo" :disable="data.id === dataAV.id" @click="undo('id')"/>
             <q-btn round size="xs" color="deep-orange" icon="replay" :disable="!dataI || data.id === dataI.id" @click="reinit('id')"/>
           </template>
         </q-input>
 
-        <q-input class="shadow-5 input1" v-model="data.nom" clearable label="Nom" @input="verif('nom')" :rules="[ val => (val.length > 6 && val.length < 100) || 'nom absent ou de longueur < 4 ou > 100']">
+        <q-input class="shadow-5 input1" color="black" bottom-slots :error="erMap.no ? true : false" :error-message="erMap.no" v-model="data.nom" clearable label="Nom" @input="verif('nom')">
           <template v-slot:append>
             <q-btn round size="xs" color="deep-orange" icon="undo" :disable="data.nom === dataAV.nom" @click="undo('nom')"/>
             <q-btn round size="xs" color="deep-orange" icon="replay" :disable="!dataI || data.nom === dataI.nom" @click="reinit('nom')"/>
           </template>
         </q-input>
 
-        <q-input class="shadow-5 input1" v-model="data['code-barre']" clearable label="Code barre à 13 chiffres)" @input="verif('code-barre')" :rules="[ val => val.length == 13 || '13 chiffres requis']">
+        <q-input class="shadow-5 input1" color="black" bottom-slots :error="erMap.co ? true : false" :error-message="erMap.co" v-model="data['code-barre']" clearable label="Code barre à 13 chiffres)" @input="verif('code-barre')">
           <template v-slot:append>
             <q-btn round size="xs" color="deep-orange" icon="undo" :disable="data['code-barre'] === dataAV['code-barre']" @click="undo('code-barre')"/>
             <q-btn round size="xs" color="deep-orange" icon="replay" :disable="!dataI || data['code-barre'] === dataI['code-barre']" @click="reinit('code-barre')"/>
           </template>
         </q-input>
 
-        <q-input class="shadow-5 input1" v-model="data.prixS" clearable :label="'Saisir le prix en centimes ==> ' + (data.prixS !== '0' ? data.prix : '0') + '€'" @input="verif('prixS')" :rules="[ val => (!val || val.length === 0 || val.length < 6) || 'prix absent ou 0 ou supérieur à 99999']">
+        <q-input class="shadow-5 input1" color="black" bottom-slots :error="erMap.pr ? true : false" :error-message="erMap.pr" v-model="data.prixS" clearable @input="verif('prixS')"
+          :label="'Saisir le prix en centimes ==> ' + (data.prixS !== '0' ? data.prix : '0') + '€'">
           <template v-slot:append>
             <q-btn round size="xs" color="deep-orange" icon="undo" :disable="data.prix === dataAV.prix" @click="undo('prix')"/>
             <q-btn round size="xs" color="deep-orange" icon="replay" :disable="!dataI || data.prix === dataI.prix" @click="reinit('prix')"/>
@@ -169,7 +170,9 @@ export default {
       n: 0,
       imageLocale: null,
       nouvelleImage: false,
-      img: null
+      img: null,
+      erreurs: [],
+      erMap: {}
     }
   },
 
@@ -209,37 +212,47 @@ export default {
   },
 
   methods: {
-    filtreErr (c) {
-      let x = []
+    filtreErr (c, err) {
+      this.erMap = {}
+      this.erreurs = []
       let v = this.data.erreurs
-      for (let i = 0, e = null; (e = v[i]); i++) { if (!e.startsWith(c)) { x.push(e) } }
-      this.data.erreurs = x
+      for (let i = 0, e = null; (e = v[i]); i++) {
+        if (!e.startsWith(c)) {
+          this.erreurs.push(e)
+          this.erMap[c] = e
+        }
+      }
+      if (err) {
+        this.erreurs.push(err)
+        this.erMap[c] = err
+      }
+      this.data.erreurs = this.erreurs
     },
 
-    undo (c) {
+    async undo (c) {
       this.data[c] = this.dataAV[c]
-      this.verif(c)
+      await this.verif(c)
     },
 
-    reinit (c) {
+    async reinit (c) {
       if (this.dataI) {
         this.data[c] = this.dataI[c]
-        this.verif(c)
+        await this.verif(c)
       }
     },
 
     async verif (c) {
       let err
-      this.filtreErr(c.substring(0, 2))
-      if (!this.data[c]) { this.data[c] = '' }
+      if (!this.data[c]) this.data[c] = ''
       if (c === 'prixS') {
-        if (!this.data.prixS) { this.data.prixS = '0' }
+        if (!this.data.prixS) this.data.prixS = '0'
         err = await maj(this.data, 'prix', this.data.prixS, true)
       } else {
         err = await maj(this.data, c, this.data[c], true)
       }
-      if (err) { this.data.erreurs.push(err) }
+      this.filtreErr(c.substring(0, 2), err)
       this.setStatus()
+      return err || ''
     },
 
     async ouvrir (idx, pos) {
@@ -264,7 +277,6 @@ export default {
 
     resize(option) {
       if (!this.img) { return }
-      this.filtreErr('im')
       let x = 'data:image/jpeg;base64,'
       try {
         this.img = option === 'cover' ? this.img.cover(128, 128) : this.img.contain(128, 128)
@@ -274,25 +286,26 @@ export default {
           this.data.imagel = this.img.bitmap.width
           this.data.imageh = this.img.bitmap.height
           this.img = null
+          this.filtreErr('im')
         }).catch(err => {
           this.img = null
-          this.data.erreurs.push('image non affichable (1) : ' + err.message)
+          this.filtreErr('im', 'image non affichable (1) : ' + err.message)
         })
       } catch (err) {
         this.img = null
-        this.data.erreurs.push('image non affichable (2) : ' + err.message)
+        this.filtreErr('im', 'image non affichable (2) : ' + err.message)
       }
     },
 
     async chargeImage(path) {
       this.img = null
-      this.filtreErr('im')
       try {
         let b64 = fs.readFileSync(path, { encoding: 'base64' })
         let buffer = Buffer.from(b64, 'base64')
         this.img = await Jimp.read(buffer)
+        this.filtreErr('im')
       } catch (err) {
-        this.data.erreurs.push('image non affichable : ' + err.message)
+        this.filtreErr('im', 'image non affichable : ' + err.message)
       }
     },
 
@@ -314,7 +327,7 @@ export default {
           this.valider()
         }
       }
-      this.idx = global.appVue.selArticles[this.pos].n
+      this.idx = global.appVue.selArticles[this.pos].n - 1
       this.ouvrir(this.idx, this.pos)
     },
 
@@ -328,7 +341,7 @@ export default {
           this.valider()
         }
       }
-      this.idx = global.appVue.selArticles[this.pos].n
+      this.idx = global.appVue.selArticles[this.pos].n - 1
       this.ouvrir(this.idx, this.pos)
     },
 
@@ -352,7 +365,6 @@ export default {
     async valider () {
       this.setStatus()
       await decore(this.data)
-      this.fichier.stats()
       global.appVue.dataChange()
     },
 
@@ -407,6 +419,8 @@ export default {
 .input1
   margin: 0.5rem
   padding: 0rem 0.5rem 2rem 0.5rem
+  color: black
+  font-size: $largeFontSize
 
 .btnimg
   max-width: 8rem !important

@@ -3,6 +3,7 @@ export const global = {
 }
 
 const regb64u = RegExp(/^[a-zA-Z0-9-_]*$/)
+const regChiffres = RegExp(/^\d+$/)
 
 export function b64u (s, min, max) {
   if (!s || s.length < min || s.length > max) { return false }
@@ -17,22 +18,48 @@ export function dateHeure () {
 }
 
 export function formatPrix (p) {
-    if (!p || p < 0) { return '0.00' }
-    const e = Math.floor(p / 100)
-    const c = Math.round(p % 100)
-    return '' + e + '.' + (c > 9 ? c : '0' + c)
+  if (!p || p < 0) { return '0.00' }
+  const e = Math.floor(p / 100)
+  const c = Math.round(p % 100)
+  return '' + e + '.' + (c > 9 ? c : '0' + c)
 }
 
 export function formatPoids (p) {
-    if (!p) return '0'
-    if (p < 1000) {
-      return p.toString() + 'g'
-    }
-    const kg = Math.floor(p / 1000)
-    const g = Math.round(p % 1000)
-    return kg + ', ' + ((g < 10 ? '00' : (g < 100 ? '0' : '')) + g) + 'Kg'
-    // return '13,457Kg'
+  if (!p) return '0'
+  if (p < 1000) {
+    return p.toString() + 'g'
   }
+  const kg = Math.floor(p / 1000)
+  const g = Math.round(p % 1000)
+  return kg + ', ' + ((g < 10 ? '00' : (g < 100 ? '0' : '')) + g) + 'Kg'
+  // return '13,457Kg'
+}
+
+export function nChiffres(s, n) {
+  if (typeof s !== 'string' || s.length === 0 || s.length > n || !regChiffres.test(s)) return false
+  return parseInt(s, 10)
+}
+
+export function centimes (s) {
+  if (typeof s !== 'string' || s.length === 0) return false
+  let i = s.indexOf('.')
+  let u = ''
+  let c = ''
+  if (i === -1) {
+      c = s
+  } else {
+    u = s.substring(0, i)
+    c = s.substring(i + 1)
+  }
+  if (!u) u = '0'
+  if (!c) c = '0'
+  if (!regChiffres.test(u)) return false
+  if (!regChiffres.test(c)) return false
+  u = parseInt(u)
+  c = parseInt(c)
+  if (i !== -1 && c > 100) return false
+  return (u * 100) + c
+}
 
   /*
   Le premier paramètre est un code barre à 13 chiffres :
@@ -57,29 +84,27 @@ export function formatPoids (p) {
   EAN13 ---> 9 780201 134476
   */
   export function editEAN(ean, p) {
-    if (typeof ean !== 'string' || ean.length !== 13) { return null }
+    if (typeof ean !== 'string' || ean.length !== 13) return ['code-barre : doit avoir exactement 13 chiffres', null]
+    if (!regChiffres.test(ean)) return ['code-barre : ne doit contenir que des chiffres', null]
     let s = ean
     const ap = typeof p !== 'undefined'
     if (ap) {
-      if (typeof p !== 'number' || p < 0 || p > 99999) { return null }
+      if (typeof p !== 'number' || p < 0 || p > 99999) { return ['code-barre : le poids n\'est pas numérique et compris entre 1 et 99999', null] }
       let x = '' + p
       s = ean.substrin(0, 0) + ('0000' + x).substring(x.length) + '0'
     }
     let c = cleEAN(s)
+    let cx = s.substring(12)
     if (!ap) {
-      return c && c === s.substring(12) ? s : null
+      return c === cx ? [null, s] : ['code-barre : erreur de clé. Celle calculée est ' + c + ', celle saisie est ' + cx, null]
     } else {
-      return !c ? null : s.substring(0, 12) + c
+      return s.substring(0, 12) + c
     }
   }
 
   export function cleEAN (s) {
     let v = new Array(13)
-    for (let i = 0; i < 13; i++) {
-      let n = s.charCodeAt(i) - 48
-      if (n < 0 || n > 9) { return null }
-      v[i] = n
-    }
+    for (let i = 0; i < 13; i++) v[i] = s.charCodeAt(i) - 48
     let x = 0
     for (let i = 10; i >= 0; i = i - 2) { x += v[i] }
     let y = 0

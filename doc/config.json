@@ -8,12 +8,11 @@
     "marge": 100,
     "categories": ["F", "L", "V", "A"],
     "host": "vps765607.ovh.net",
-    "url": "http://vps765607.ovh.net",
     "port": 8069,
     "database": "odoo9",
     "username": "daniel@sportes.fr",
     "password": "stopogm_2019",
     "minCB": "04900000000000",
     "maxCB": "04999999999999",
-    "map": {"id":"id", "name_template":"nom", "barcode":"code-barre", "list_price":"prix", "rack_location":"categorie", "to_weight":"unite", "other_information":"image"} 
+    "map": {"id":"id", "name_template":"nom", "barcode":"code-barre", "list_price":"prix", "categ_id":"categorie", "unit":"unite", "image":"image"} 
 }

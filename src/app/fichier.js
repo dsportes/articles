@@ -1,17 +1,24 @@
-// CSV : id nom code-barre prix categorie unite image
-/* Décor :
-n : numéro de ligne dans le fichier (identifiant)
-nomN : nom normalisé, en majuscule et sans accent
-ean6 : six caractètres de tête de l'ean (sans le 0)
-err[] : liste des erreurs détectées
-codeCourt : deux lettres en majuscules calculées depuis l'id
-poidsPiece : pods donné en fin du nom après // représentant le poids unitaire moyen d'une pièce
-bio : true si le mot BIO figure dans le nom
-prixN : prix sous forme numérique
+/*
+Module gérant les fichiers descriptifs des articles qui sont des CSV ayant les colonnes suivantes :
+    id nom code-barre prix categorie unite image
+Un fichier est chargé en mémloire dans une liste 'articles' :
+- c'est de facto l'index dans la liste qui y est identifiant (PAS id, doublons possibles)
+- chaque objet de la liste, nommé article ou data la plupart du temps contient des propriétés supplémentaires
+calculées depuis la ligne du fichier CSV:
+    n : numéro de ligne dans le fichier (identifiant)
+    nomN : nom normalisé, en majuscule et sans accent
+    err[] : liste des erreurs détectées
+    codeCourt : deux lettres en majuscules calculées depuis l'id ou donné explicitement en tête du nom
+    poidsPiece : poids donné en fin du nom après // représentant le poids unitaire moyen d'une pièce. -1 pour un article à peser
+    bio : true si le mot BIO figure dans le nom (non case sensitive)
+    prixN : prix sous forme numérique
+    imagel : largeur de l'image
+    imageh : hauteur de l'image
+    status : statut d'édition : 0:inchangé, 1:créé, 2:modifié, 3:détruit, 4:créé puis détruit
 */
 
 import { config } from './config'
-import { removeDiacritics, editEAN, formatPrix, dateHeure, centimes, nChiffres } from './global'
+import { removeDiacritics, editEAN, formatPrix, dateHeure, centimes, nChiffres, codeCourtDeId, poidsPiece } from './global'
 const { Readable } = require('stream')
 const csv = require('csv-parser')
 const fs = require('fs')
@@ -19,19 +26,38 @@ const path = require('path')
 const createCsvStringifier = require('csv-writer').createObjectCsvStringifier
 const Jimp = require('jimp')
 
+// liste des colonnes du fichier CSV
 export const colonnes = ['id', 'nom', 'code-barre', 'prix', 'categorie', 'unite', 'image']
+
+// valeurs par défaut de ces colonnes quand on crée un article vide
 export const defVal = ['99999', '', '0000000000000', '0.0', 'A', 'Unite(s)', '']
+
+// les mêmes directement en CSV
 export const ligne1 = '99999;"";0000000000000;0.0;A;Unite(s);""\n'
 
+// l'entête CSV depuis les noms des colonnes
 export const enteteCSV = []
 for (let i = 0, f = null; (f = colonnes[i]); i++) { enteteCSV.push('"' + f + (i === colonnes.length - 1 ? '"\n' : '";')) }
 
+// directory racine
 const dir = config.dir
+
+// directory contenant les archives des derniers fichiers mis à disposition des balances
 const archivesPath = path.join(dir, 'archives')
+
+// directory contenant des modèles de fichiers
 const modelesPath = path.join(dir, 'modèles')
+
+// nom du fichier de référence articles.csv mis à disposition des balances
 const articlesPath = path.join(dir, 'articles.csv')
+
+// categories d'articles acceptées. Par défaut celles de La Cagette
 const categories = config.categories || ['F', 'L', 'V', 'A']
+
+// nombre maximal de fichiers gardés en archives
 const maxArch = config.nbMaxArchives ? config.nbMaxArchives : 10
+
+// constante nécessaire pour l'écriture de fichiers CSV depuis une liste d'objets
 const header = [
     { id: 'id', title: 'id' },
     { id: 'nom', title: 'nom' },
@@ -42,19 +68,23 @@ const header = [
     { id: 'image', title: 'image' }
 ]
 
+// liste des articles actuellement mis à disposition des bamlances. Change à chaque mise en service explicite
 let reference = []
 
+// clone un article, en fait seulement ses données CSV, pas celles calculées et ajoutées
 export function clone(data) {
     const a1 = {}
     for (let i = 0, f = null; (f = colonnes[i]); i++) { a1[f] = data[f] }
     return a1
 }
 
+// détermine si deux articles sont identiques, ont les mêmes valeurs pour les colonnes du CSV
 export function eq(a1, a2) {
     for (let i = 0, f = null; (f = colonnes[i]); i++) { if (a1[f] !== a2[f]) { return false } }
     return true
 }
 
+// détermine si une liste d'articles est exactement identique à celle actuellement mise à disposition des balances
 export function eqRef(articles) {
     if (articles.length !== reference.length) { return false }
     for (let i = 0; i < articles.length; i++) {
@@ -63,6 +93,7 @@ export function eqRef(articles) {
     return true
 }
 
+// liste les archives actuellement disponibles dans le répertoire ./archives
 export function listeArchMod(arch) {
     let lst = []
     fs.readdirSync(arch ? archivesPath : modelesPath).forEach(file => {
@@ -78,6 +109,10 @@ export function listeArchMod(arch) {
     return lst
 }
 
+/*
+Copie un fichier de path p quelconque sous ./modèles avec un nom donné
+La raison d'un Promise n'est pas claire puisqu'on utilise que des fs "sync". Peut-être historique, mais bon ça marche
+*/
 export function copieFichier(nom, p) {
     return new Promise((resolve, reject) => {
         const data = fs.readFileSync(p, 'utf8', (err) => { reject(err) })
@@ -87,12 +122,13 @@ export function copieFichier(nom, p) {
 }
 
 /*
-Si nom est présent et ne commence pas par $ : c'est soit une archive, soit un modèle
-Si nom == '$S' : fichier récupéré du serveur central (sélection d'articles de ODOO).
-Si nom == '$N' : c'est un nouveau fichier vide.
-Si nom est absent : c'est le fichier actuellement en service sur les balances (le dernier envoyé)
+Une instance de Fichier représente un fichier CSV chargé en mémoire.
+Le constructeur (nom, arch) donne son origine :
+    Si nom est présent et ne commence pas par $ : c'est soit une archive, soit un modèle
+    Si nom == '$S' : fichier récupéré du serveur central (sélection d'articles de ODOO).
+    Si nom == '$N' : c'est un nouveau fichier vide.
+    Si nom est absent : c'est le fichier actuellement mis à disposition des balances
 */
-
 export class Fichier {
     constructor (nom, arch) {
         this.nom = nom && nom.endsWith('.csv') ? nom.substring(0, nom.length - 4) : nom
@@ -121,16 +157,26 @@ export class Fichier {
         this.nberreurs = 0
     }
 
+    // destruction physique du fichier (purge)
     detruire () {
         if (this.nom) { fs.unlinkSync(this.path) }
     }
 
     /*
-    Si n est présent, le sauver en tant que modèle
-    si envoi est true, l'envoyer aux balances si différent de la référence : l'écrire en archive ET sur articles.csv
+    Ecriture / sauvegarde d'un fichier :
+        1) Si n est présent, le sauver en tant que modèle sous le nom n
+        2) Si envoi est true, le mettre à disposition des balances, à moins que son contenu soit strictement identique
+            à celui déjà mis à disposition, et donc ne pas l'archiver puisqu'il est inchangé.
+            si différent de la référence : écrityre en archive ET sur articles.csv
     */
     ecrire (n, envoi) {
         let na = []
+        /*
+        Le fichier a été modifié en mémoire. Il y figure :
+        - des aricles qui ont été marqués "supprimés" : ils ne se retrouvent pas dans le fichier sauvé
+        - des articles créés ou modifiés qui deviennent des articles normaux (status 0)
+        - na  : c'est la nouvelle image du fichier après sauvegarde
+        */
         for (let i = 0; i < this.articles.length; i++) {
             let x = this.articles[i]
             if (x.status <= 2) {
@@ -139,8 +185,8 @@ export class Fichier {
             }
         }
         this.articles = na
-        this.stats()
-        let aEnvoyer = envoi && !eqRef(na)
+        this.stats() // on recalcule les stats, en particulier puisque les articles ont changé de status
+        let aEnvoyer = envoi && !eqRef(na) // le fichier est à mettre à disposition des balances, SI c'est deamndé en paramètre ET SI ça change de la référence (le dernier mis à disposition)
         return new Promise((resolve, reject) => {
             const csvStringifier = createCsvStringifier({ header: header, fieldDelimiter: ';' })
             const s = csvStringifier.getHeaderString() + csvStringifier.stringifyRecords(na)
@@ -154,11 +200,11 @@ export class Fichier {
                 fs.writeFileSync(path.join(modelesPath, n + '.csv'), s, (err) => { reject(err) })
             }
             if (aEnvoyer) {
-                // le contenu diffère de celui en service : mettre en archives et dans aricles.csv. C'est la nouvelle référence
+                // le contenu diffère de celui mis à disposition des balances : le sauver mettre en archives ET dans aricles.csv. C'est la nouvelle référence
                 a = dateHeure()
                 fs.writeFileSync(articlesPath, s, (err) => { reject(err) })
                 fs.writeFileSync(path.join(archivesPath, a + '.csv'), s, (err) => { reject(err) })
-                reference = []
+                reference = [] // ça devient la nouvelle réfrence. On clone les articles parce que le fichier courant peut ensuite être édité
                 for (let i = 0, data = null; (data = this.articles[i]); i++) reference.push(clone(data))
             }
             resolve(a)
@@ -166,27 +212,39 @@ export class Fichier {
     }
 
     /*
+    Lecture d'un fichier CSV :
     Si le fichier a pour nom $S l'argument source est l'array des articles (objets) importée des données du serveur central (ODOO).
     Si le fichier est $N,
         a) soit la source est constituée de la seule entête CSV (elle n'est pas donnée en argument).
         b) soit c'est un fichier externe dont source donne le path
     Sinon le contenu est lu depuis le fichier dont le path a été défini au constructor (nom arch)
+    Propriétés :
+        articles : array des articles dans leur état courant (potenteiellement modifiés, créés, détruits)
+        articlesI : array des articles dans leur état initial, clonés à la lecture, pour savoir pour chaque article quel étatit son état avant édition
+        --- Calculées par stats()
+        nbcrees : nombre d'articles créés
+        mapId : map pour chaque id, nombre d'articles ayant cette id. Un doublon d'id dans le fichier est possible mais grave
+        nbmodifies : nombre d'articles modifiés
+        nbsupprimes : nombre d'articles supprimés
+        nberreurs : nombre d'articles ayant au moins une erreur= 0
+        doublons : liste des index des articles en doublon d'id
     */
     async lire (source) {
         if (this.nom === '$S') {
             this.articles = source
             for (let i = 0, data = null; (data = this.articles[i]); i++) {
+                // Chaque article est numéroté et décoré (ajout de propriétés calculées)
                 data.n = i + 1
                 data.status = 0
-                this.articlesI.push(clone(data))
+                this.articlesI.push(clone(data)) // cloné dans articlesI pour avoir son état avant édition éventuelle
                 await decore(data)
             }
-            this.stats()
+            this.stats() // recalcul des statistiques sur le fichier
             return this.articles
         }
 
         return new Promise((resolve, reject) => {
-            let stream
+            let stream // le stream diffère selon la source du fichier
             if (this.nom && this.nom.startsWith('$')) {
                 if (this.nom === '$S') {
                     stream = Readable.from([source])
@@ -202,15 +260,19 @@ export class Fichier {
             } else {
                 stream = fs.createReadStream(this.path)
             }
-            let n = 0
-            this.erreur = false
-            let ref = []
+            let n = 0 // compteur d'article lu / parsé
+            this.erreur = false // pas trouvé d'erreur à la lecture / parse
+            let ref = [] // deviendra (ou non) la future réfrence
             stream.on('error', (e) => {
                 reject(e)
             })
             try {
                 stream.pipe(csv({ separator: ';' }))
                 .on('data', (data) => {
+                    /* 
+                    Pour chaque article, préparé ou non pour être mis en référence, décompté, status à 0 
+                    et conservé dans articles (à éditer) et articlesI (état initial avant édition)
+                    */
                     if (!this.nom) ref.push(clone(data))
                     n++
                     data.n = n
@@ -219,12 +281,17 @@ export class Fichier {
                     this.articles.push(data)
                 })
                 .on('end', async () => {
+                    /*
+                    Tous lus :
+                    - on décore tous les articles : recherche d'erreurs, ajout de propriétés
+                    - on calcule la statistique globale
+                    */
                     if (!this.nom) reference = ref
                     for (let i = 0, data = null; (data = this.articles[i]); i++) {
                         await decore(data)
                     }
                     this.stats()
-                    resolve(this.articles)
+                    resolve(this.articles) // pas vraiment utile de renvoyer articles, mais bon...
                 })
                 stream.on('error', (e) => {
                     reject(e)
@@ -235,6 +302,9 @@ export class Fichier {
         })
     }
 
+    /*
+    Calcul des propriétés statistiques du fichier, de ses éditions
+    */
     stats () {
         this.nbcrees = 0
         this.mapId = {}
@@ -261,6 +331,13 @@ export class Fichier {
     }
 }
 
+/*
+Cette fonction calcule les propriétés calculées d'un article (data) et accumule
+dans erreurs les diagnostics d'erreurs rencontrées.
+Cette fonction est invoquée :
+- à la lecture d'un fichier
+- à la validation d'un article édité
+*/
 export async function decore (data) {
     data.erreurs = []
     let e
@@ -271,31 +348,41 @@ export async function decore (data) {
 }
 
 /*
-Option "simple" : si true, le controle est allégé, pour une image celle-ci n'est pas générée depuis sa base64
+Cette fonction contrôle si la valeur 'val' pour une colonne 'col' d'un article 'data' est correcte ou non.
+De plus elle décore data avec des propriétés calculées.
+Option "simple" : si true, le controle est allégé pour une image.
+Celle-ci n'est pas générée depuis sa base64 (ce qui prend du temps) et qu'on veut éviter quand on est sûr que c'est une bonne image.
+Quand l'appel vient de l'éditeur d'article, la valeur val n'est pas déjà mise dans l'article : en particulier quand il y a une erreur
+Retourne le libellé de l'erreur détectée (ou '' si OK). Ce libellé commence par le nom de la colonne (voir l'édition d'un article)
 */
 export async function maj (data, col, val, simple) {
     switch (col) {
         case 'id' : {
             try {
+                /*
+                Le code court est, soit explicité en tête du nom, soit calculé depuis l'id
+                */
                 const n = nChiffres(val, 6)
                 if (n === false) { return 'id non numérique compris entre 1 et 999999' }
                 data.id = val
-                // 'A' = 65
-                const l1 = String.fromCharCode((n % 26) + 65)
-                const l2 = String.fromCharCode((Math.floor(n / 26) % 26) + 65)
-                data.codeCourt = l2 + l1
+                data.codeCourt = codeCourtDeId(data.id, data.nom)
                 return ''
             } catch (e) {
                 return 'id non numérique compris entre 1 et 999999'
             }
         }
         case 'nom' : {
-            if (!val || val.length < 4 || val.length > 100) {
-                return 'nom absent ou de longueur < 4 ou > 100'
-            }
+            if (!val || val.length < 4 || val.length > 100) return 'nom absent ou de longueur < 4 ou > 100'
+            /*
+            Le code court est, soit explicité en tête du nom, soit calculé depuis l'id
+            On détermine aussi si c'est BIO et pour un article à l'unité son poids moyen éventuel
+            */
             data.nom = val
+            data.codeCourt = codeCourtDeId(data.id, data.nom)
             data.nomN = removeDiacritics(data.nom.toUpperCase())
-            data.bio = data.nomN.indexOf('BIO') !== -1
+            data.bio = (data.nomN.indexOf('BIO') !== -1)
+            let [, p] = poidsPiece(data.unite, data.nom)
+            data.poidsPiece = p
             return ''
         }
         case 'prix' : {
@@ -311,20 +398,12 @@ export async function maj (data, col, val, simple) {
             }
         }
         case 'unite' : {
-            if (!val || (!val.startsWith('Unit') && val !== 'kg')) {
-                return 'unite doit valoir "Unite(s) ou Unité(s)" ou "kg" - [' + val + '] trouvé'
-            }
+            if (!val || (!val.startsWith('Unit') && val !== 'kg')) return 'unite doit valoir "Unite(s) ou Unité(s)" ou "kg" - [' + val + '] trouvé'
             data.unite = val
-            if (val.startsWith('Unit')) {
+            if (data.unite.startsWith('Unit')) {
                 data.unite = 'Unité(s)'
-                let i = data.nom.lastIndexOf('//')
-                if (i === -1) {
-                    data.poidsPiece = 0
-                } else {
-                    const x = data.nom.substring(i + 2)
-                    const p = parseInt(x, 10)
-                    data.poidsPiece = isNaN(p) ? 0 : p
-                }
+                let [, p] = poidsPiece(data.unite, data.nom)
+                data.poidsPiece = p
             } else {
                 data.poidsPiece = -1
             }
@@ -337,19 +416,25 @@ export async function maj (data, col, val, simple) {
             return ''
         }
         case 'categorie' : {
-            if (!val || categories.indexOf(val) === -1) {
-                return 'catégorie absente ou pas dans la liste des catégories reconnues'
-            }
+            if (!val || categories.indexOf(val) === -1) return 'catégorie absente ou pas dans la liste des catégories reconnues'
             data.categorie = val
             return ''
         }
         case 'image' : {
-           let buffer
+            /*
+            L'image est encodée en base64. 
+            - il faut au moins que ce texte soit du base64 correct (la construction du Buffer échoue sinon)
+            - que le binaire correspondant soit vraiment une image et qu'on en obtienne la largeur et la hauteur.
+            Cette dernière vérification n'est faite que quand le base64 vient d'un fichier.
+            S'il vient déjà d'une image par l'éditeur c'est inutile et coûteux.
+            C'est me dule Jimp qui permet d'obtenir l'image (qu'on ne garde pas d'ailleurs)
+            */
+            let buffer
             try {
                 buffer = Buffer.from(val, 'base64')
                 if (!buffer) { return 'image mal encodée (pas en base64)' }
             } catch (err) {
-            return 'image mal encodée (pas en base64)' + err.message
+                return 'image mal encodée (pas en base64)' + err.message
             }
             data.image = val || ''
             if (!simple) {

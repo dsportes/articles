@@ -42,8 +42,8 @@ module.exports = function (ctx) {
       //            (not treeshaking Quasar; biggest bundle size; convenient)
       all: 'auto',
 
-      components: ['QDialog'],
-      directives: ['ClosePopup'],
+      components: [],
+      directives: [],
 
       // Quasar plugins
       plugins: []
@@ -96,6 +96,7 @@ module.exports = function (ctx) {
 
     // https://quasar.dev/quasar-cli/developing-pwa/configuring-pwa
     pwa: {
+      /*
       workboxPluginMode: 'GenerateSW', // 'GenerateSW' or 'InjectManifest'
       workboxOptions: {}, // only for GenerateSW
       manifest: {
@@ -134,6 +135,7 @@ module.exports = function (ctx) {
           }
         ]
       }
+      */
     },
 
     // Full list of options: https://quasar.dev/quasar-cli/developing-cordova-apps/configuring-cordova
@@ -170,7 +172,7 @@ module.exports = function (ctx) {
 
       builder: {
         // https://www.electron.build/configuration/configuration
-        appId: 'articles'
+        appId: 'produits'
       },
 
       // More info: https://quasar.dev/quasar-cli/developing-electron-apps/node-integration

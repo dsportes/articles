@@ -11,12 +11,12 @@
       <div v-else class="image  bg-grey-4"></div>
     </div>
     <div class="col-auto column items-start droite">
-      <div class="col-auto prix">{{ article.id }}</div>
+      <div class="col-auto prix">{{ article.id }} - [{{ article.codeCourt }}]</div>
       <div class="col-auto prix">{{ article['code-barre'] }}</div>
       <div class="col-auto prix">{{ article.categorie }}</div>
       <div v-if="article.status !== 0" class="col-auto prix rouge">{{ libstat() }}</div>
     </div>
-    <div class="col nomproduit">[{{ article.codeCourt }}] {{ article.nom }}</div>
+    <div class="col nomproduit">{{ article.nom }}</div>
     <div class="col-auto column items-start droite">
       <div class="col-auto prix" v-if="article.poidsPiece === -1">{{ article.prix }}€ le Kg</div>
       <div class="col-auto prix" v-else>{{ article.prix }}€ piéce</div>

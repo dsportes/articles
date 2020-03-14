@@ -1,8 +1,8 @@
 {
-  "name": "articles",
+  "name": "produits",
   "version": "0.0.3",
-  "description": "Catalogue des articles et son édition",
-  "productName": "articles",
+  "description": "Catalogue des produits à peser et son édition",
+  "productName": "produits",
   "cordovaId": "",
   "capacitorId": "",
   "author": "daniel@sportes.fr>",

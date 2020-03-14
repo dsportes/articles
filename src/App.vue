@@ -280,7 +280,8 @@ const optionsFiltre = [
   'Modifiés',
   'Supprimés',
   'Inchangés',
-  'Doublons de code article'
+  'Doublons de code article',
+  'Ayant un code court fixé'
 ]
 
 export default {
@@ -401,6 +402,7 @@ export default {
       17 'Supprimés'
       18 'Inchangés'
       19 : 'Doublons de code article'
+      20 : 'Ayant un code court fixé'
       */
       let c = this.ifiltre
       let n = parseInt(this.argFiltre)
@@ -428,7 +430,8 @@ export default {
         case 16 : { this.selArticles = s.filter(a => a.status === 2); break }
         case 17 : { this.selArticles = s.filter(a => a.status >= 3); break }
         case 18 : { this.selArticles = s.filter(a => a.status === 0); break }
-        case 19 : { this.selArticles = s.filter(a => this.fichier.mapId[a.id] > 1) }
+        case 19 : { this.selArticles = s.filter(a => this.fichier.mapId[a.id] > 1); break }
+        case 20 : { this.selArticles = s.filter(a => a.nom.startsWith('[' + a.codeCourt + ']')) }
       }
       this.trier()
     },

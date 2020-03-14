@@ -1,3 +1,9 @@
+/*
+Ce module est quasiment inchangé par rapport au module par défaut de electron/quasar
+- obtention de la taille de la fenêtre à l'ouverture quand on ne prend pas celle par défaut de 800x600
+- pas de menu dans la fenêtre en production
+*/
+
 import { app, BrowserWindow, nativeTheme } from 'electron'
 
 try {
@@ -14,6 +20,10 @@ if (process.env.PROD) {
   global.__statics = require('path').join(__dirname, 'statics').replace(/\\/g, '\\\\')
 }
 
+/*
+Obtention de la largeur et de la hauteur de la fenêtre de l'application passées sur la ligne de commande :
+produits h=600 l=800
+*/
 const argv = process.argv
 let hauteur = 700
 let largeur = 1000
@@ -40,6 +50,7 @@ function createWindow () {
     webPreferences: {
       // Change from /quasar.conf.js > electron > nodeIntegration;
       // More info: https://quasar.dev/quasar-cli/developing-electron-apps/node-integration
+      // Erreur lint ci-après, mais ça marche, la variable est injectée par Quasar
       nodeIntegration: QUASAR_NODE_INTEGRATION
 
       // More info: /quasar-cli/developing-electron-apps/electron-preload-script
@@ -49,7 +60,7 @@ function createWindow () {
 
   mainWindow.loadURL(process.env.APP_URL)
 
-  if (process.env.PROD) {
+  if (process.env.PROD) { // pas de menu en production (mais pas full screen non plus)
     mainWindow.setMenu(null)
     // mainWindow.setSimpleFullScreen(true)
   } else {
